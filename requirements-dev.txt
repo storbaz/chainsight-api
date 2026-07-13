@@ -1,0 +1,4 @@
+pytest
+anyio
+pytest-anyio
+httpx
