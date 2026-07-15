@@ -1,10 +1,16 @@
 import httpx
+from cachetools import TTLCache
 from app.config import settings
+
+cache = TTLCache(maxsize=100, ttl=60)
 
 
 class MarketService:
 
     async def get_top_coins(self, limit: int = 20, currency: str = "usd") -> list[dict]:
+        key = f"top_{limit}_{currency}"
+        if key in cache:
+            return cache[key]
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(
                 f"{settings.COINGECKO_BASE_URL}/coins/markets",
@@ -18,9 +24,14 @@ class MarketService:
                 },
             )
             resp.raise_for_status()
-            return resp.json()
+            data = resp.json()
+            cache[key] = data
+            return data
 
     async def get_coin_detail(self, coin_id: str, currency: str = "usd") -> dict:
+        key = f"coin_{coin_id}_{currency}"
+        if key in cache:
+            return cache[key]
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(
                 f"{settings.COINGECKO_BASE_URL}/coins/{coin_id}",
@@ -36,7 +47,7 @@ class MarketService:
             resp.raise_for_status()
             data = resp.json()
             md = data.get("market_data", {})
-            return {
+            result = {
                 "id": data.get("id"),
                 "symbol": data.get("symbol"),
                 "name": data.get("name"),
@@ -58,13 +69,18 @@ class MarketService:
                 "ath_date": md.get("ath_date", {}).get(currency, ""),
                 "last_updated": md.get("last_updated", ""),
             }
+            cache[key] = result
+            return result
 
     async def get_global_data(self) -> dict:
+        key = "global"
+        if key in cache:
+            return cache[key]
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(f"{settings.COINGECKO_BASE_URL}/global")
             resp.raise_for_status()
             d = resp.json().get("data", {})
-            return {
+            result = {
                 "total_market_cap": d.get("total_market_cap", {}),
                 "total_volume": d.get("total_volume", {}),
                 "market_cap_percentage": d.get("market_cap_percentage", {}),
@@ -72,8 +88,13 @@ class MarketService:
                 "markets": d.get("markets", 0),
                 "market_cap_change_percentage_24h_usd": d.get("market_cap_change_percentage_24h_usd", 0),
             }
+            cache[key] = result
+            return result
 
     async def search_coins(self, query: str) -> list[dict]:
+        key = f"search_{query}"
+        if key in cache:
+            return cache[key]
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(
                 f"{settings.COINGECKO_BASE_URL}/search",
@@ -81,7 +102,7 @@ class MarketService:
             )
             resp.raise_for_status()
             coins = resp.json().get("coins", [])
-            return [
+            result = [
                 {
                     "id": c.get("id"),
                     "name": c.get("name"),
@@ -90,6 +111,8 @@ class MarketService:
                 }
                 for c in coins[:10]
             ]
+            cache[key] = result
+            return result
 
 
 market_service = MarketService()
