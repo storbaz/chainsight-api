@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: crypto-insight-bot
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python telegram_bot.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: TELEGRAM_TOKEN
+        sync: false
