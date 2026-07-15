@@ -5,28 +5,51 @@ from app.config import settings
 
 cache = TTLCache(maxsize=100, ttl=300)
 stale_cache: dict = {}
+http_client = httpx.AsyncClient(timeout=10)
 
 
 class MarketService:
 
-    async def _fetch_with_retry(self, url: str, params: dict, retries: int = 3) -> dict:
-        async with httpx.AsyncClient(timeout=10) as client:
-            for attempt in range(retries):
-                try:
-                    resp = await client.get(url, params=params)
-                    if resp.status_code == 429:
-                        if attempt < retries - 1:
-                            await asyncio.sleep(3 * (attempt + 1))
-                            continue
-                        raise httpx.HTTPStatusError(
-                            "Rate limited", request=resp.request, response=resp
-                        )
-                    resp.raise_for_status()
-                    return resp.json()
-                except httpx.HTTPStatusError:
-                    if attempt == retries - 1:
-                        raise
-                    await asyncio.sleep(3 * (attempt + 1))
+    async def _fetch_with_retry(self, url: str, params: dict, retries: int = 2) -> dict:
+        for attempt in range(retries):
+            try:
+                resp = await http_client.get(url, params=params)
+                if resp.status_code == 429:
+                    if attempt < retries - 1:
+                        await asyncio.sleep(2 * (attempt + 1))
+                        continue
+                    raise Exception("Rate limited")
+                resp.raise_for_status()
+                return resp.json()
+            except Exception:
+                if attempt == retries - 1:
+                    raise
+                await asyncio.sleep(2 * (attempt + 1))
+
+    async def _fetch_paprika_top(self, limit: int = 10) -> list[dict]:
+        try:
+            resp = await http_client.get(
+                "https://api.coinpaprika.com/v1/tickers",
+                params={"limit": limit},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return [
+                {
+                    "id": c.get("id", "").replace("-", "-"),
+                    "symbol": c.get("symbol", ""),
+                    "name": c.get("name", ""),
+                    "current_price": c.get("quotes", {}).get("USD", {}).get("price", 0),
+                    "market_cap": c.get("quotes", {}).get("USD", {}).get("market_cap", 0),
+                    "market_cap_rank": c.get("rank", 0),
+                    "total_volume": c.get("quotes", {}).get("USD", {}).get("volume_24h", 0),
+                    "price_change_percentage_24h": c.get("quotes", {}).get("USD", {}).get("percent_change_24h", 0),
+                    "price_change_percentage_7d": c.get("quotes", {}).get("USD", {}).get("percent_change_7d", 0),
+                }
+                for c in data
+            ]
+        except Exception:
+            return []
 
     async def get_top_coins(self, limit: int = 20, currency: str = "usd") -> list[dict]:
         key = f"top_{limit}_{currency}"
@@ -48,7 +71,14 @@ class MarketService:
             stale_cache[key] = data
             return data
         except Exception:
-            return stale_cache.get(key, [])
+            if key in stale_cache:
+                return stale_cache[key]
+            fallback = await self._fetch_paprika_top(limit)
+            if fallback:
+                cache[key] = fallback
+                stale_cache[key] = fallback
+                return fallback
+            return []
 
     async def get_coin_detail(self, coin_id: str, currency: str = "usd") -> dict:
         key = f"coin_{coin_id}_{currency}"
@@ -93,7 +123,9 @@ class MarketService:
             stale_cache[key] = result
             return result
         except Exception:
-            return stale_cache.get(key, {"error": "Rate limited. Try again later."})
+            if key in stale_cache:
+                return stale_cache[key]
+            return {"error": "not_found"}
 
     async def get_global_data(self) -> dict:
         key = "global"
