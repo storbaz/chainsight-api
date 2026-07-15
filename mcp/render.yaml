@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: chainsight-mcp
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server_http.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: CHAINSIGHT_BASE_URL
+        value: https://chainsight-api.onrender.com
