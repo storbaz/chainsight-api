@@ -1,16 +1,22 @@
 import httpx
+from cachetools import TTLCache
 from app.config import settings
+
+cache = TTLCache(maxsize=100, ttl=120)
 
 
 class DeFiService:
 
     async def get_top_protocols(self, limit: int = 20) -> list[dict]:
+        key = f"protocols_{limit}"
+        if key in cache:
+            return cache[key]
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(f"{settings.DEFILLAMA_BASE_URL}/protocols")
             resp.raise_for_status()
             protocols = resp.json()
-            protocols.sort(key=lambda x: x.get("tvl", 0), reverse=True)
-            return [
+            protocols.sort(key=lambda x: x.get("tvl") or 0, reverse=True)
+            result = [
                 {
                     "name": p.get("name"),
                     "slug": p.get("slug"),
@@ -25,14 +31,24 @@ class DeFiService:
                 }
                 for p in protocols[:limit]
             ]
+            cache[key] = result
+            return result
 
     async def get_protocol_tvl(self, protocol_slug: str) -> dict:
+        key = f"tvl_{protocol_slug}"
+        if key in cache:
+            return cache[key]
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(f"{settings.DEFILLAMA_BASE_URL}/tvl/{protocol_slug}")
             resp.raise_for_status()
-            return {"protocol": protocol_slug, "tvl": resp.json()}
+            result = {"protocol": protocol_slug, "tvl": resp.json()}
+            cache[key] = result
+            return result
 
     async def get_yields(self, chain: str | None = None, limit: int = 20) -> list[dict]:
+        key = f"yields_{chain}_{limit}"
+        if key in cache:
+            return cache[key]
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(f"{settings.DEFILLAMA_BASE_URL}/pools")
             resp.raise_for_status()
@@ -40,7 +56,7 @@ class DeFiService:
             if chain:
                 pools = [p for p in pools if p.get("chain", "").lower() == chain.lower()]
             pools.sort(key=lambda x: x.get("tvlUsd", 0), reverse=True)
-            return [
+            result = [
                 {
                     "pool": p.get("pool"),
                     "project": p.get("project"),
@@ -56,14 +72,18 @@ class DeFiService:
                 }
                 for p in pools[:limit]
             ]
+            cache[key] = result
+            return result
 
     async def get_stablecoins(self) -> list[dict]:
+        if "stablecoins" in cache:
+            return cache["stablecoins"]
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(f"{settings.DEFILLAMA_BASE_URL}/stablecoins")
             resp.raise_for_status()
             coins = resp.json().get("peggedAssets", [])
             coins.sort(key=lambda x: x.get("circulating", {}).get("peggedUSD", 0), reverse=True)
-            return [
+            result = [
                 {
                     "name": c.get("name"),
                     "symbol": c.get("symbol"),
@@ -75,6 +95,8 @@ class DeFiService:
                 }
                 for c in coins[:20]
             ]
+            cache["stablecoins"] = result
+            return result
 
 
 defi_service = DeFiService()

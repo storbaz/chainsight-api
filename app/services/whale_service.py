@@ -1,10 +1,16 @@
 import httpx
+from cachetools import TTLCache
 from app.config import settings
+
+cache = TTLCache(maxsize=100, ttl=120)
 
 
 class WhaleService:
 
     async def get_eth_large_transactions(self, min_value_eth: float = 100) -> list[dict]:
+        key = f"whales_{min_value_eth}"
+        if key in cache:
+            return cache[key]
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(
                 settings.ETHERSCAN_BASE_URL,
@@ -22,6 +28,8 @@ class WhaleService:
             )
             resp.raise_for_status()
             data = resp.json().get("result", [])
+            if isinstance(data, str):
+                return []
             results = []
             for tx in data:
                 value_eth = int(tx.get("value", "0")) / 1e18
@@ -37,9 +45,12 @@ class WhaleService:
                         "block_number": int(tx.get("blockNumber", 0)),
                         "timestamp": tx.get("timeStamp", ""),
                     })
+            cache[key] = results
             return results
 
     async def get_gas_estimate(self) -> dict:
+        if "gas" in cache:
+            return cache["gas"]
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(
                 settings.ETHERSCAN_BASE_URL,
@@ -50,14 +61,18 @@ class WhaleService:
                 },
             )
             resp.raise_for_status()
-            data = resp.json().get("result", {})
-            return {
-                "low": float(data.get("SafeGasPrice", 0)),
-                "average": float(data.get("ProposeGasPrice", 0)),
-                "fast": float(data.get("FastGasPrice", 0)),
-                "base_fee": float(data.get("suggestBaseFee", 0)),
-                "last_block": int(data.get("LastBlock", 0)),
+            result = resp.json().get("result", {})
+            if isinstance(result, str):
+                return {"low": 0, "average": 0, "fast": 0, "base_fee": 0, "last_block": 0}
+            gas = {
+                "low": float(result.get("SafeGasPrice", 0)),
+                "average": float(result.get("ProposeGasPrice", 0)),
+                "fast": float(result.get("FastGasPrice", 0)),
+                "base_fee": float(result.get("suggestBaseFee", 0)),
+                "last_block": int(result.get("LastBlock", 0)),
             }
+            cache["gas"] = gas
+            return gas
 
 
 whale_service = WhaleService()
