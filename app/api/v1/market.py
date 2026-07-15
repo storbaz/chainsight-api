@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, HTTPException
 from app.services.market_service import market_service
 from app.services.sentiment_service import sentiment_service
 
@@ -18,7 +18,10 @@ async def get_coin_detail(
     coin_id: str,
     currency: str = Query("usd"),
 ):
-    return await market_service.get_coin_detail(coin_id=coin_id, currency=currency)
+    result = await market_service.get_coin_detail(coin_id=coin_id, currency=currency)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail="Coin not found")
+    return result
 
 
 @router.get("/global")

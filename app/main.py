@@ -1,8 +1,27 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from app.config import settings
 from app.api.v1 import market, defi, whales, health
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    import asyncio
+    from app.services.market_service import market_service
+    from app.services.sentiment_service import sentiment_service
+
+    async def warm_cache():
+        try:
+            await market_service.get_top_coins(limit=10)
+            await sentiment_service.get_fear_greed_index()
+            print("Cache warmed successfully")
+        except Exception as e:
+            print(f"Cache warming failed: {e}")
+
+    asyncio.create_task(warm_cache())
+    yield
 
 
 def create_app() -> FastAPI:
@@ -12,6 +31,7 @@ def create_app() -> FastAPI:
         description="Unified Crypto Intelligence API — Prices, On-Chain Data, DeFi Analytics, and Sentiment in one place.",
         docs_url="/docs",
         redoc_url="/redoc",
+        lifespan=lifespan,
     )
 
     app.add_middleware(
