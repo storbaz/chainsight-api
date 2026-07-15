@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "ChainSight - Crypto Prices & Sentiment",
+  "version": "1.0",
+  "description": "Real-time crypto prices and Fear & Greed Index in your browser.",
+  "permissions": ["storage"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icon.png"
+  }
+}

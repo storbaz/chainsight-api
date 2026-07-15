@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { width: 320px; font-family: -apple-system, sans-serif; background: #0a0a1a; color: white; padding: 15px; }
+    h1 { font-size: 16px; margin-bottom: 15px; text-align: center; }
+    .coin { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #1a1a3e; }
+    .coin-name { font-weight: 600; }
+    .coin-price { color: #00d4aa; }
+    .change { font-size: 12px; }
+    .up { color: #00d4aa; }
+    .down { color: #ff4757; }
+    .fear-greed { background: #1a1a3e; border-radius: 8px; padding: 15px; margin-top: 15px; text-align: center; }
+    .fear-greed h2 { font-size: 14px; margin-bottom: 10px; }
+    .value { font-size: 32px; font-weight: 700; }
+    .label { font-size: 12px; color: #888; margin-top: 5px; }
+    .loading { text-align: center; padding: 20px; color: #888; }
+  </style>
+</head>
+<body>
+  <h1>🔍 ChainSight</h1>
+  <div id="content" class="loading">Loading...</div>
+
+  <script>
+    const API = "https://chainsight-api.onrender.com";
+
+    async function load() {
+      try {
+        const [topRes, fgRes] = await Promise.all([
+          fetch(`${API}/v1/market/top?limit=5`),
+          fetch(`${API}/v1/market/fear-greed`)
+        ]);
+        const top = await topRes.json();
+        const fg = await fgRes.json();
+
+        let html = "";
+        top.forEach(coin => {
+          const change = coin.price_change_percentage_24h || 0;
+          const cls = change >= 0 ? "up" : "down";
+          const sign = change >= 0 ? "+" : "";
+          html += `
+            <div class="coin">
+              <span class="coin-name">${coin.symbol.toUpperCase()}</span>
+              <span>
+                <span class="coin-price">$${coin.current_price.toLocaleString()}</span>
+                <span class="change ${cls}">${sign}${change.toFixed(1)}%</span>
+              </span>
+            </div>`;
+        });
+
+        html += `
+          <div class="fear-greed">
+            <h2>Fear & Greed Index</h2>
+            <div class="value">${fg.value}</div>
+            <div class="label">${fg.classification}</div>
+          </div>`;
+
+        document.getElementById("content").innerHTML = html;
+      } catch (e) {
+        document.getElementById("content").innerHTML = "Error loading data";
+      }
+    }
+
+    load();
+  </script>
+</body>
+</html>
