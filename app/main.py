@@ -47,7 +47,7 @@ def create_app() -> FastAPI:
     app.include_router(defi.router, prefix="/v1")
     app.include_router(whales.router, prefix="/v1")
 
-    @app.get("/ping")
+    @app.api_route("/ping", methods=["GET", "HEAD"])
     async def ping():
         return {"ping": "pong"}
 
