@@ -189,6 +189,9 @@ class WhaleService:
 
         rpc = chain_conf["rpc"]
 
+        base_gwei = 0
+
+        # Try RPC first
         try:
             rpc_resp = await http_client.post(
                 rpc,
@@ -198,37 +201,56 @@ class WhaleService:
             rpc_resp.raise_for_status()
             hex_price = rpc_resp.json().get("result", "0x0")
             base_gwei = int(hex_price, 16) / 1e9
+        except Exception:
+            pass
 
-            if chain_conf.get("gas_api") == "etherscan" and settings.ETHERSCAN_API_KEY:
-                try:
-                    resp = await http_client.get(
-                        settings.ETHERSCAN_BASE_URL,
-                        params={
-                            "chainid": chain_conf["chain_id"],
-                            "module": "gastracker",
-                            "action": "gasoracle",
-                            "apikey": settings.ETHERSCAN_API_KEY,
-                        },
-                        timeout=10,
-                    )
-                    resp.raise_for_status()
-                    result = resp.json().get("result", {})
-                    if isinstance(result, dict) and "SafeGasPrice" in result:
-                        gas = {
-                            "chain": chain,
-                            "chain_name": chain_conf["name"],
-                            "symbol": chain_conf["symbol"],
-                            "low": float(result.get("SafeGasPrice", 0)),
-                            "average": float(result.get("ProposeGasPrice", 0)),
-                            "fast": float(result.get("FastGasPrice", 0)),
-                            "base_fee": float(result.get("suggestBaseFee", 0)),
-                            "unit": "gwei",
-                        }
-                        cache[key] = gas
-                        return gas
-                except Exception:
-                    pass
+        # Try Etherscan gas oracle (best source)
+        if chain_conf.get("gas_api") == "etherscan" and settings.ETHERSCAN_API_KEY:
+            try:
+                resp = await http_client.get(
+                    settings.ETHERSCAN_BASE_URL,
+                    params={
+                        "chainid": chain_conf["chain_id"],
+                        "module": "gastracker",
+                        "action": "gasoracle",
+                        "apikey": settings.ETHERSCAN_API_KEY,
+                    },
+                    timeout=10,
+                )
+                resp.raise_for_status()
+                result = resp.json().get("result", {})
+                if isinstance(result, dict) and "SafeGasPrice" in result:
+                    gas = {
+                        "chain": chain,
+                        "chain_name": chain_conf["name"],
+                        "symbol": chain_conf["symbol"],
+                        "low": float(result.get("SafeGasPrice", 0)),
+                        "average": float(result.get("ProposeGasPrice", 0)),
+                        "fast": float(result.get("FastGasPrice", 0)),
+                        "base_fee": float(result.get("suggestBaseFee", 0)),
+                        "unit": "gwei",
+                    }
+                    cache[key] = gas
+                    return gas
+            except Exception:
+                pass
 
+        # Try Blocknative public API (no key needed, ETH only)
+        if chain == "ethereum" and base_gwei == 0:
+            try:
+                resp = await http_client.get(
+                    "https://api.blocknative.com/gasprices/blockprices",
+                    headers={"Authorization": settings.ETHERSCAN_API_KEY or "public"},
+                    timeout=10,
+                )
+                if resp.status_code == 200:
+                    bp = resp.json().get("blockPrices", [{}])[0].get("estimatedPrices", [{}])
+                    if bp:
+                        base_gwei = bp[0].get("price", 20)
+            except Exception:
+                pass
+
+        if base_gwei > 0:
             gas = {
                 "chain": chain,
                 "chain_name": chain_conf["name"],
@@ -241,8 +263,8 @@ class WhaleService:
             }
             cache[key] = gas
             return gas
-        except Exception:
-            return cache.get(key, {"error": f"Failed to get gas for {chain}"})
+
+        return cache.get(key, {"error": f"Failed to get gas for {chain}. Set ETHERSCAN_API_KEY on Render."})
 
     async def get_all_chains_gas(self) -> list[dict]:
         results = []
