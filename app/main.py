@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JavaScriptResponse
+from fastapi.responses import HTMLResponse, Response
 from app.config import settings
 from app.api.v1 import market, defi, whales, health, alerts, news, admin
 from app.middleware.api_key import APIKeyMiddleware
@@ -142,7 +142,7 @@ h3{text-align:center;margin:30px 0 10px;color:#888}
 </body>
 </html>"""
 
-    @app.get("/widget.js", response_class=JavaScriptResponse, tags=["Widget"])
+    @app.get("/widget.js", tags=["Widget"])
     async def widget_js():
         js = """
 (function(){
@@ -166,7 +166,7 @@ h3{text-align:center;margin:30px 0 10px;color:#888}
   }catch(e){}}
   load();setInterval(load,60000);
 })();"""
-        return JavaScriptResponse(content=js, media_type="application/javascript")
+        return Response(content=js, media_type="application/javascript")
 
     @app.get("/dashboard", response_class=HTMLResponse, tags=["Dashboard"])
     async def dashboard():
