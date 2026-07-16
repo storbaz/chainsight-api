@@ -33,8 +33,11 @@ def _load_usage() -> dict:
 
 
 def _save_usage(usage: dict):
-    USAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    USAGE_FILE.write_text(json.dumps(usage, indent=2))
+    try:
+        USAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        USAGE_FILE.write_text(json.dumps(usage, indent=2))
+    except Exception:
+        pass
 
 
 def create_api_key(label: str = "", plan: str = "free") -> dict:
@@ -49,8 +52,11 @@ def create_api_key(label: str = "", plan: str = "free") -> dict:
         "created_at": int(time.time()),
     }
     keys[key] = entry
-    KEYS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    KEYS_FILE.write_text(json.dumps(keys, indent=2))
+    try:
+        KEYS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        KEYS_FILE.write_text(json.dumps(keys, indent=2))
+    except Exception:
+        pass
     return entry
 
 
@@ -62,7 +68,10 @@ def revoke_api_key(key: str) -> bool:
     keys = _load_keys()
     if key in keys:
         keys[key]["active"] = False
-        KEYS_FILE.write_text(json.dumps(keys, indent=2))
+        try:
+            KEYS_FILE.write_text(json.dumps(keys, indent=2))
+        except Exception:
+            pass
         return True
     return False
 
