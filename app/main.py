@@ -168,6 +168,12 @@ h3{text-align:center;margin:30px 0 10px;color:#888}
 })();"""
         return JavaScriptResponse(content=js, media_type="application/javascript")
 
+    @app.get("/dashboard", response_class=HTMLResponse, tags=["Dashboard"])
+    async def dashboard():
+        from pathlib import Path
+        html = (Path(__file__).parent / "pages" / "dashboard.html").read_text()
+        return HTMLResponse(content=html)
+
     return app
 
 

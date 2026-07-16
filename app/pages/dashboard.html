@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChainSight Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,sans-serif;background:#0a0a1a;color:#fff;min-height:100vh}
+.nav{background:#1a1a3e;padding:12px 24px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #333}
+.nav h1{font-size:18px}
+.nav a{color:#00d4aa;text-decoration:none;font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;padding:20px}
+.card{background:#1a1a3e;border-radius:12px;padding:16px}
+.card h3{font-size:13px;text-transform:uppercase;color:#888;margin-bottom:12px;letter-spacing:1px}
+.card .big{font-size:32px;font-weight:700}
+.card .sub{font-size:12px;color:#666;margin-top:4px}
+.up{color:#00d4aa}.dn{color:#ff4757}
+.chart-card{background:#1a1a3e;border-radius:12px;padding:16px;margin:0 20px 20px}
+.chart-card h3{font-size:13px;text-transform:uppercase;color:#888;margin-bottom:12px}
+.chart-card canvas{width:100%!important;height:300px!important}
+select,button{background:#0a0a1a;color:#fff;border:1px solid #333;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer}
+select:hover,button:hover{border-color:#00d4aa}
+.controls{display:flex;gap:8px;align-items:center}
+.news-list{max-height:300px;overflow-y:auto}
+.news-item{padding:8px 0;border-bottom:1px solid #222}
+.news-item:last-child{border:none}
+.news-item a{color:#00d4aa;text-decoration:none;font-size:13px}
+.news-item .meta{font-size:10px;color:#666;margin-top:2px}
+</style>
+</head>
+<body>
+<div class="nav">
+  <h1>ChainSight Dashboard</h1>
+  <a href="https://rapidapi.com/storbaz/api/chainsight" target="_blank">Get API Key</a>
+</div>
+
+<div class="grid">
+  <div class="card"><h3>Bitcoin</h3><div class="big" id="btcPrice">--</div><div class="sub" id="btcChange"></div></div>
+  <div class="card"><h3>Ethereum</h3><div class="big" id="ethPrice">--</div><div class="sub" id="ethChange"></div></div>
+  <div class="card"><h3>Fear & Greed</h3><div class="big" id="fgValue">--</div><div class="sub" id="fgLabel">Loading...</div></div>
+  <div class="card"><h3>Gas (Gwei)</h3><div class="big" id="gasValue">--</div><div class="sub" id="gasSub">Slow / Fast</div></div>
+</div>
+
+<div class="controls" style="padding:0 20px 12px">
+  <select id="chartCoin">
+    <option value="bitcoin">Bitcoin</option>
+    <option value="ethereum">Ethereum</option>
+    <option value="solana">Solana</option>
+    <option value="binancecoin">BNB</option>
+    <option value="cardano">Cardano</option>
+  </select>
+  <select id="chartDays">
+    <option value="7">7 days</option>
+    <option value="30" selected>30 days</option>
+    <option value="90">90 days</option>
+    <option value="365">1 year</option>
+  </select>
+  <button onclick="loadChart()">Load</button>
+</div>
+
+<div class="chart-card">
+  <h3>Price History</h3>
+  <canvas id="priceChart"></canvas>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h3>News</h3>
+    <div class="news-list" id="news"><div style="color:#666">Loading...</div></div>
+  </div>
+  <div class="card">
+    <h3>Top DeFi Protocols</h3>
+    <div id="defi"><div style="color:#666">Loading...</div></div>
+  </div>
+</div>
+
+<div style="text-align:center;padding:20px;font-size:11px;color:#444">
+  Powered by <a href="https://rapidapi.com/storbaz/api/chainsight" style="color:#00d4aa">ChainSight API</a>
+</div>
+
+<script>
+const API="https://chainsight-api.onrender.com";
+let chart;
+
+async function init(){
+  const[t,f,g,n,d]=await Promise.all([
+    fetch(API+"/v1/market/top?limit=5").then(r=>r.json()),
+    fetch(API+"/v1/market/fear-greed").then(r=>r.json()),
+    fetch(API+"/v1/whales/gas").then(r=>r.json()),
+    fetch(API+"/v1/market/news?limit=5").then(r=>r.json()),
+    fetch(API+"/v1/defi/protocols?limit=5").then(r=>r.json()),
+  ]);
+
+  const btc=t.find(c=>c.symbol==="btc");
+  const eth=t.find(c=>c.symbol==="eth");
+  if(btc){document.getElementById("btcPrice").textContent="$"+btc.current_price.toLocaleString();document.getElementById("btcChange").innerHTML=`<span class="${btc.price_change_percentage_24h>=0?"up":"dn"}">${btc.price_change_percentage_24h>=0?"+":""}${btc.price_change_percentage_24h?.toFixed(1)||0}% 24h</span>`;}
+  if(eth){document.getElementById("ethPrice").textContent="$"+eth.current_price.toLocaleString();document.getElementById("ethChange").innerHTML=`<span class="${eth.price_change_percentage_24h>=0?"up":"dn"}">${eth.price_change_percentage_24h>=0?"+":""}${eth.price_change_percentage_24h?.toFixed(1)||0}% 24h</span>`;}
+
+  document.getElementById("fgValue").textContent=f.value||"--";
+  document.getElementById("fgLabel").textContent=f.classification||"";
+
+  document.getElementById("gasValue").textContent=g.average||"--";
+  document.getElementById("gasSub").textContent=`${g.low||"--"} / ${g.fast||"--"}`;
+
+  document.getElementById("news").innerHTML=(n.articles||[]).map(a=>`<div class="news-item"><a href="${a.url}" target="_blank">${a.title}</a><div class="meta">${a.source} ${a.published?"- "+a.published.split("T")[0]:""}</div></div>`).join("");
+
+  document.getElementById("defi").innerHTML=(d||[]).map(p=>`<div style="padding:6px 0;border-bottom:1px solid #222;font-size:13px"><span style="font-weight:700">${p.name}</span><span style="float:right;color:#00d4aa">$${(p.tvl||0).toLocaleString(undefined,{maximumFractionDigits:0})}</span><div style="font-size:10px;color:#666">${p.category||""} ${p.chains?"- "+p.chains.join(", "):""}</div></div>`).join("");
+
+  loadChart();
+}
+
+async function loadChart(){
+  const coin=document.getElementById("chartCoin").value;
+  const days=document.getElementById("chartDays").value;
+  try{
+    const r=await fetch(API+`/v1/market/history?coin_id=${coin}&days=${days}`);
+    const d=await r.json();
+    if(d.error){return;}
+    const labels=d.prices.map(p=>new Date(p.timestamp*1000).toLocaleDateString());
+    const prices=d.prices.map(p=>p.price);
+    if(chart)chart.destroy();
+    chart=new Chart(document.getElementById("priceChart"),{
+      type:"line",
+      data:{labels,datasets:[{label:coin,data:prices,borderColor:"#00d4aa",backgroundColor:"rgba(0,212,170,0.1)",fill:true,tension:0.3,pointRadius:0,borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:true,grid:{color:"#222"},ticks:{color:"#666",maxTicksLimit:7}},y:{grid:{color:"#222"},ticks:{color:"#666",callback:v=>"$"+v.toLocaleString()}}}}
+    });
+  }catch(e){}
+}
+
+init();
+setInterval(init,60000);
+</script>
+</body>
+</html>

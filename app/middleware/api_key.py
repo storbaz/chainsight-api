@@ -69,7 +69,7 @@ def revoke_api_key(key: str) -> bool:
 
 class APIKeyMiddleware(BaseHTTPMiddleware):
 
-    SKIP_PATHS = {"/", "/ping", "/docs", "/redoc", "/openapi.json", "/widget", "/widget.js"}
+    SKIP_PATHS = {"/", "/ping", "/docs", "/redoc", "/openapi.json", "/widget", "/widget.js", "/dashboard"}
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
