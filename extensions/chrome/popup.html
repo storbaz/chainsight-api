@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{width:380px;font-family:-apple-system,sans-serif;background:#0a0a1a;color:#fff;padding:16px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.header h1{font-size:16px}
+.header img{width:24px;height:24px}
+.settings{cursor:pointer;font-size:18px;opacity:0.6;transition:opacity 0.2s}
+.settings:hover{opacity:1}
+.fear-greed{background:#1a1a3e;border-radius:10px;padding:14px;text-align:center;margin-bottom:12px}
+.fear-greed .val{font-size:32px;font-weight:700}
+.fear-greed .lbl{font-size:12px;color:#888}
+.section-title{font-size:11px;text-transform:uppercase;color:#666;margin:12px 0 8px;letter-spacing:1px}
+.coin{background:#1a1a3e;border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.coin .left{display:flex;align-items:center;gap:8px}
+.coin .sym{font-weight:700;font-size:13px}
+.coin .name{font-size:11px;color:#888}
+.coin .right{text-align:right}
+.coin .price{font-weight:700;font-size:13px}
+.coin .change{font-size:11px}
+.up{color:#00d4aa}.dn{color:#ff4757}
+.whale{background:#1a1a3e;border-radius:8px;padding:10px;margin-bottom:6px}
+.whale .wh-top{display:flex;justify-content:space-between;margin-bottom:4px}
+.whale .wh-val{font-weight:700;color:#ff9f43;font-size:13px}
+.whale .wh-time{font-size:10px;color:#666}
+.whale .wh-addr{font-size:10px;color:#888;word-break:break-all}
+.gas-bar{background:#1a1a3e;border-radius:8px;padding:10px;display:flex;justify-content:space-around;margin-bottom:12px}
+.gas-item{text-align:center}
+.gas-item .gl{font-size:10px;color:#888}
+.gas-item .gv{font-size:14px;font-weight:700}
+.footer{text-align:center;font-size:10px;color:#444;margin-top:12px}
+.footer a{color:#00d4aa;text-decoration:none}
+.loading{text-align:center;color:#666;padding:20px;font-size:12px}
+.settings-panel{display:none;background:#1a1a3e;border-radius:10px;padding:14px;margin-bottom:12px}
+.settings-panel.show{display:block}
+.settings-panel label{font-size:11px;color:#888;display:block;margin-bottom:4px}
+.settings-panel input,.settings-panel select{width:100%;padding:6px 8px;border-radius:6px;border:1px solid #333;background:#0a0a1a;color:#fff;font-size:12px;margin-bottom:8px}
+.settings-panel button{width:100%;padding:8px;border-radius:6px;border:none;background:#00d4aa;color:#000;font-weight:700;cursor:pointer;font-size:12px}
+.settings-panel button:hover{background:#00b894}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>ChainSight</h1>
+  <span class="settings" id="settingsBtn">&#9881;</span>
+</div>
+
+<div class="settings-panel" id="settingsPanel">
+  <label>Whale Alert Threshold (ETH)</label>
+  <input type="number" id="threshold" value="100" min="1">
+  <label>Top Coins to Show</label>
+  <select id="topCoins">
+    <option value="3">3</option>
+    <option value="5" selected>5</option>
+    <option value="10">10</option>
+  </select>
+  <button id="saveSettings">Save</button>
+</div>
+
+<div class="fear-greed" id="fg"><div class="val">--</div><div class="lbl">Loading...</div></div>
+
+<div class="section-title">Top Coins</div>
+<div id="coins"><div class="loading">Loading prices...</div></div>
+
+<div class="section-title">Gas</div>
+<div class="gas-bar" id="gas"><div class="loading">Loading...</div></div>
+
+<div class="section-title">Recent Whales</div>
+<div id="whales"><div class="loading">Loading...</div></div>
+
+<div class="footer">Powered by <a href="https://rapidapi.com/storbaz/api/chainsight" target="_blank">ChainSight API</a></div>
+
+<script src="popup.js"></script>
+</body>
+</html>
