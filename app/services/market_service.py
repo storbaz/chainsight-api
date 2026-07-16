@@ -395,7 +395,59 @@ class MarketService:
             stale_cache[key] = result
             return result
         except Exception:
-            return stale_cache.get(key, {"error": "Failed to fetch price history"})
+            pass
+
+        # Fallback: CoinPaprika OHLCV
+        try:
+            from datetime import datetime, timedelta
+            end = datetime.utcnow()
+            start = end - timedelta(days=days)
+            resp = await http_client.get(
+                f"https://api.coinpaprika.com/v1/coins/{coin_id}/ohlcv/historical",
+                params={
+                    "start": start.strftime("%Y-%m-%d"),
+                    "end": end.strftime("%Y-%m-%d"),
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            if data:
+                prices = [
+                    {"timestamp": int(datetime.fromisoformat(c["time_open"].replace("Z", "")).timestamp()), "price": c["close"]}
+                    for c in data
+                ]
+                volumes = [
+                    {"timestamp": int(datetime.fromisoformat(c["time_open"].replace("Z", "")).timestamp()), "volume": c["volume"]}
+                    for c in data
+                ]
+                price_vals = [p["price"] for p in prices]
+                result = {
+                    "coin_id": coin_id,
+                    "currency": currency,
+                    "days": days,
+                    "source": "coinpaprika",
+                    "prices": prices,
+                    "market_caps": [],
+                    "volumes": volumes,
+                    "summary": {},
+                }
+                if price_vals:
+                    result["summary"] = {
+                        "start_price": round(price_vals[0], 2),
+                        "end_price": round(price_vals[-1], 2),
+                        "high": round(max(price_vals), 2),
+                        "low": round(min(price_vals), 2),
+                        "change_pct": round(
+                            ((price_vals[-1] - price_vals[0]) / price_vals[0]) * 100, 2
+                        ) if price_vals[0] else 0,
+                    }
+                cache[key] = result
+                stale_cache[key] = result
+                return result
+        except Exception:
+            pass
+
+        return stale_cache.get(key, {"error": "Failed to fetch price history"})
 
     async def get_correlation(
         self, coin_ids: list[str], days: int = 30, vs_currency: str = "usd"
@@ -410,6 +462,8 @@ class MarketService:
             if cid.lower() in ("s&p500", "sp500", "spy", "^gspc"):
                 prices = await self._fetch_sp500_prices(days)
             else:
+                # Try CoinGecko first
+                prices = []
                 try:
                     data = await self._fetch_with_retry(
                         f"{settings.COINGECKO_BASE_URL}/coins/{cid}/market_chart",
@@ -418,7 +472,27 @@ class MarketService:
                     raw = data.get("prices", [])
                     prices = [p[1] for p in raw]
                 except Exception:
-                    prices = []
+                    pass
+
+                # Fallback: CoinPaprika
+                if len(prices) < 3:
+                    try:
+                        from datetime import datetime, timedelta
+                        end = datetime.utcnow()
+                        start = end - timedelta(days=days)
+                        resp = await http_client.get(
+                            f"https://api.coinpaprika.com/v1/coins/{cid}/ohlcv/historical",
+                            params={
+                                "start": start.strftime("%Y-%m-%d"),
+                                "end": end.strftime("%Y-%m-%d"),
+                            },
+                        )
+                        resp.raise_for_status()
+                        paprika_data = resp.json()
+                        if paprika_data:
+                            prices = [c["close"] for c in paprika_data]
+                    except Exception:
+                        pass
 
             all_series[cid] = prices
 
