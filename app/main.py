@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from app.config import settings
-from app.api.v1 import market, defi, whales, health
+from app.api.v1 import market, defi, whales, health, alerts
 
 
 @asynccontextmanager
@@ -20,7 +20,22 @@ async def lifespan(app: FastAPI):
                 pass
             await asyncio.sleep(480)
 
+    async def whale_monitor():
+        from app.services.whale_service import whale_service
+        from app.services.alert_service import alert_service
+        await asyncio.sleep(30)
+        while True:
+            try:
+                txs = await whale_service.get_eth_large_transactions(min_value_eth=50)
+                real_txs = [t for t in txs if "hash" in t]
+                if real_txs:
+                    await alert_service.check_and_trigger(real_txs)
+            except Exception:
+                pass
+            await asyncio.sleep(300)
+
     asyncio.create_task(keep_alive())
+    asyncio.create_task(whale_monitor())
     yield
 
 
@@ -46,6 +61,7 @@ def create_app() -> FastAPI:
     app.include_router(market.router, prefix="/v1")
     app.include_router(defi.router, prefix="/v1")
     app.include_router(whales.router, prefix="/v1")
+    app.include_router(alerts.router, prefix="/v1")
 
     @app.api_route("/ping", methods=["GET", "HEAD"])
     async def ping():
@@ -65,12 +81,15 @@ def create_app() -> FastAPI:
                 "compare": "/v1/market/compare?coin1=bitcoin&coin2=ethereum",
                 "trending": "/v1/market/trending",
                 "global": "/v1/market/global",
+                "price_history": "/v1/market/history?coin_id=bitcoin&days=30",
+                "correlation": "/v1/market/correlation?ids=bitcoin,ethereum,s&p500",
                 "fear_greed": "/v1/market/fear-greed",
                 "defi_protocols": "/v1/defi/protocols",
                 "defi_yields": "/v1/defi/yields",
                 "stablecoins": "/v1/defi/stablecoins",
                 "whale_txs": "/v1/whales/eth",
                 "gas": "/v1/whales/gas",
+                "webhook_alerts": "/v1/alerts/webhook",
             },
         }
 

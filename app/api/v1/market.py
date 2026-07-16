@@ -62,6 +62,35 @@ async def search_coins(query: str = Query(..., min_length=1)):
     return await market_service.search_coins(query=query)
 
 
+@router.get("/history")
+async def get_price_history(
+    coin_id: str = Query(..., description="Coin ID (e.g. 'bitcoin')"),
+    days: int = Query(30, ge=1, le=365, description="Number of days of history"),
+    currency: str = Query("usd"),
+):
+    result = await market_service.get_price_history(coin_id=coin_id, days=days, currency=currency)
+    if "error" in result:
+        raise HTTPException(status_code=502, detail=result["error"])
+    return result
+
+
+@router.get("/correlation")
+async def get_correlation(
+    ids: str = Query(..., description="Comma-separated asset IDs (e.g. 'bitcoin,ethereum,s&p500')"),
+    days: int = Query(30, ge=7, le=365, description="Days of history for correlation"),
+    currency: str = Query("usd"),
+):
+    id_list = [i.strip() for i in ids.split(",") if i.strip()]
+    if len(id_list) < 2:
+        raise HTTPException(status_code=400, detail="At least 2 assets required for correlation")
+    if len(id_list) > 5:
+        raise HTTPException(status_code=400, detail="Max 5 assets")
+    result = await market_service.get_correlation(coin_ids=id_list, days=days, vs_currency=currency)
+    if "error" in result:
+        raise HTTPException(status_code=502, detail=result["error"])
+    return result
+
+
 @router.get("/fear-greed")
 async def get_fear_greed_index():
     return await sentiment_service.get_fear_greed_index()

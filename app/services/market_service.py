@@ -1,4 +1,5 @@
 import asyncio
+import math
 import httpx
 from cachetools import TTLCache
 from app.config import settings
@@ -341,6 +342,152 @@ class MarketService:
             return result
         except Exception:
             return stale_cache.get(key, {"trending": []})
+
+    async def get_price_history(
+        self, coin_id: str, days: int = 30, currency: str = "usd"
+    ) -> dict:
+        key = f"history_{coin_id}_{days}_{currency}"
+        if key in cache:
+            return cache[key]
+
+        cg_days = days if days <= 365 else "max"
+        try:
+            data = await self._fetch_with_retry(
+                f"{settings.COINGECKO_BASE_URL}/coins/{coin_id}/market_chart",
+                params={"vs_currency": currency, "days": cg_days, "interval": "daily"},
+            )
+            prices = data.get("prices", [])
+            market_caps = data.get("market_caps", [])
+            volumes = data.get("total_volumes", [])
+
+            result = {
+                "coin_id": coin_id,
+                "currency": currency,
+                "days": days,
+                "prices": [
+                    {"timestamp": int(p[0] / 1000), "price": p[1]}
+                    for p in prices
+                ],
+                "market_caps": [
+                    {"timestamp": int(p[0] / 1000), "market_cap": p[1]}
+                    for p in market_caps
+                ],
+                "volumes": [
+                    {"timestamp": int(p[0] / 1000), "volume": p[1]}
+                    for p in volumes
+                ],
+                "summary": {},
+            }
+
+            if prices:
+                price_vals = [p[1] for p in prices]
+                result["summary"] = {
+                    "start_price": round(price_vals[0], 2),
+                    "end_price": round(price_vals[-1], 2),
+                    "high": round(max(price_vals), 2),
+                    "low": round(min(price_vals), 2),
+                    "change_pct": round(
+                        ((price_vals[-1] - price_vals[0]) / price_vals[0]) * 100, 2
+                    ) if price_vals[0] else 0,
+                }
+
+            cache[key] = result
+            stale_cache[key] = result
+            return result
+        except Exception:
+            return stale_cache.get(key, {"error": "Failed to fetch price history"})
+
+    async def get_correlation(
+        self, coin_ids: list[str], days: int = 30, vs_currency: str = "usd"
+    ) -> dict:
+        key = f"corr_{','.join(sorted(coin_ids))}_{days}"
+        if key in cache:
+            return cache[key]
+
+        all_series: dict[str, list[float]] = {}
+
+        for cid in coin_ids:
+            if cid.lower() in ("s&p500", "sp500", "spy", "^gspc"):
+                prices = await self._fetch_sp500_prices(days)
+            else:
+                try:
+                    data = await self._fetch_with_retry(
+                        f"{settings.COINGECKO_BASE_URL}/coins/{cid}/market_chart",
+                        params={"vs_currency": vs_currency, "days": days, "interval": "daily"},
+                    )
+                    raw = data.get("prices", [])
+                    prices = [p[1] for p in raw]
+                except Exception:
+                    prices = []
+
+            all_series[cid] = prices
+
+        min_len = min((len(v) for v in all_series.values()), default=0)
+        if min_len < 3:
+            return {"error": "Not enough data points to compute correlation", "series_lengths": {k: len(v) for k, v in all_series.items()}}
+
+        returns: dict[str, list[float]] = {}
+        for cid, prices in all_series.items():
+            trimmed = prices[:min_len]
+            r = [(trimmed[i] - trimmed[i - 1]) / trimmed[i - 1] for i in range(1, len(trimmed)) if trimmed[i - 1] != 0]
+            returns[cid] = r
+
+        n = min(len(v) for v in returns.values())
+        matrix: dict[str, dict[str, float]] = {}
+        for a in coin_ids:
+            matrix[a] = {}
+            for b in coin_ids:
+                if a == b:
+                    matrix[a][b] = 1.0
+                elif b in matrix and a in matrix.get(b, {}):
+                    matrix[a][b] = matrix[b][a]
+                else:
+                    matrix[a][b] = round(self._pearson(returns[a][:n], returns[b][:n]), 4)
+
+        avg_returns = {}
+        for cid in coin_ids:
+            r = returns[cid][:n]
+            avg_returns[cid] = round(sum(r) / len(r) * 100, 4) if r else 0
+
+        result = {
+            "days": days,
+            "assets": coin_ids,
+            "data_points": n,
+            "correlation_matrix": matrix,
+            "avg_daily_return_pct": avg_returns,
+        }
+        cache[key] = result
+        stale_cache[key] = result
+        return result
+
+    async def _fetch_sp500_prices(self, days: int) -> list[float]:
+        try:
+            period2 = int(asyncio.get_event_loop().time())
+            period1 = period2 - (days * 86400)
+            resp = await http_client.get(
+                "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC",
+                params={"period1": period1, "period2": period2, "interval": "1d"},
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data["chart"]["result"][0]["indicators"]["quote"][0]["close"]
+        except Exception:
+            return []
+
+    @staticmethod
+    def _pearson(x: list[float], y: list[float]) -> float:
+        n = len(x)
+        if n < 2:
+            return 0.0
+        mx = sum(x) / n
+        my = sum(y) / n
+        num = sum((x[i] - mx) * (y[i] - my) for i in range(n))
+        dx = math.sqrt(sum((xi - mx) ** 2 for xi in x))
+        dy = math.sqrt(sum((yi - my) ** 2 for yi in y))
+        if dx == 0 or dy == 0:
+            return 0.0
+        return num / (dx * dy)
 
 
 market_service = MarketService()
