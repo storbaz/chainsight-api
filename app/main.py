@@ -3,7 +3,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, Response
 from app.config import settings
-from app.api.v1 import market, defi, whales, health, alerts, news, admin
+from app.api.v1 import market, defi, whales, health, alerts, news, admin, security, signals
 
 
 @asynccontextmanager
@@ -64,6 +64,8 @@ def create_app() -> FastAPI:
     app.include_router(alerts.router, prefix="/v1")
     app.include_router(news.router, prefix="/v1")
     app.include_router(admin.router, prefix="/v1")
+    app.include_router(security.router, prefix="/v1")
+    app.include_router(signals.router, prefix="/v1")
 
     @app.api_route("/ping", methods=["GET", "HEAD"])
     async def ping():
@@ -93,6 +95,11 @@ def create_app() -> FastAPI:
                 "gas": "/v1/whales/gas",
                 "webhook_alerts": "/v1/alerts/webhook",
                 "news": "/v1/market/news",
+                "honeypot_check": "/v1/security/honeypot/{address}?chain=ethereum",
+                "token_audit": "/v1/security/token/{address}?chain=ethereum",
+                "whale_accumulation": "/v1/signals/whale-accumulation",
+                "volume_anomaly": "/v1/signals/volume-anomaly",
+                "momentum": "/v1/signals/momentum?coin_id=bitcoin",
             },
         }
 
