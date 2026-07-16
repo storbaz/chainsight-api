@@ -9,18 +9,18 @@ from app.api.v1 import market, defi, whales, health
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     import asyncio
-    from app.services.market_service import market_service
-    from app.services.sentiment_service import sentiment_service
+    import httpx
 
-    async def warm_cache():
-        try:
-            await market_service.get_top_coins(limit=10)
-            await sentiment_service.get_fear_greed_index()
-            print("Cache warmed successfully")
-        except Exception as e:
-            print(f"Cache warming failed: {e}")
+    async def keep_alive():
+        while True:
+            try:
+                async with httpx.AsyncClient(timeout=5) as client:
+                    await client.get("https://chainsight-api.onrender.com/ping")
+            except Exception:
+                pass
+            await asyncio.sleep(480)
 
-    asyncio.create_task(warm_cache())
+    asyncio.create_task(keep_alive())
     yield
 
 
@@ -46,6 +46,10 @@ def create_app() -> FastAPI:
     app.include_router(market.router, prefix="/v1")
     app.include_router(defi.router, prefix="/v1")
     app.include_router(whales.router, prefix="/v1")
+
+    @app.get("/ping")
+    async def ping():
+        return {"ping": "pong"}
 
     @app.get("/", tags=["Root"])
     async def root():
