@@ -4,7 +4,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, Response
 from app.config import settings
 from app.api.v1 import market, defi, whales, health, alerts, news, admin
-from app.middleware.api_key import APIKeyMiddleware
 
 
 @asynccontextmanager
@@ -57,8 +56,6 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    app.add_middleware(APIKeyMiddleware)
 
     app.include_router(health.router, tags=["Health"])
     app.include_router(market.router, prefix="/v1")
