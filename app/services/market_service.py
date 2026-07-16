@@ -173,5 +173,112 @@ class MarketService:
         except Exception:
             return stale_cache.get(key, [])
 
+    async def get_coins_bulk(self, ids: list[str], currency: str = "usd") -> list[dict]:
+        key = f"bulk_{','.join(sorted(ids))}_{currency}"
+        if key in cache:
+            return cache[key]
+        try:
+            data = await self._fetch_with_retry(
+                f"{settings.COINGECKO_BASE_URL}/coins/markets",
+                params={
+                    "vs_currency": currency,
+                    "ids": ",".join(ids),
+                    "order": "market_cap_desc",
+                    "per_page": len(ids),
+                    "page": 1,
+                    "sparkline": "false",
+                    "price_change_percentage": "7d",
+                },
+            )
+            cache[key] = data
+            stale_cache[key] = data
+            return data
+        except Exception:
+            return stale_cache.get(key, [])
+
+    async def compare_coins(self, coin1: str, coin2: str, currency: str = "usd") -> dict:
+        key = f"compare_{coin1}_{coin2}_{currency}"
+        if key in cache:
+            return cache[key]
+        try:
+            data = await self._fetch_with_retry(
+                f"{settings.COINGECKO_BASE_URL}/coins/markets",
+                params={
+                    "vs_currency": currency,
+                    "ids": f"{coin1},{coin2}",
+                    "sparkline": "false",
+                    "price_change_percentage": "7d",
+                },
+            )
+            if len(data) < 2:
+                return {"error": "One or both coins not found"}
+            c1, c2 = data[0], data[1]
+            result = {
+                "coin1": {
+                    "id": c1.get("id"),
+                    "name": c1.get("name"),
+                    "symbol": c1.get("symbol"),
+                    "current_price": c1.get("current_price", 0),
+                    "market_cap": c1.get("market_cap", 0),
+                    "market_cap_rank": c1.get("market_cap_rank"),
+                    "total_volume": c1.get("total_volume", 0),
+                    "price_change_24h": c1.get("price_change_percentage_24h", 0),
+                    "price_change_7d": c1.get("price_change_percentage_7d", 0),
+                },
+                "coin2": {
+                    "id": c2.get("id"),
+                    "name": c2.get("name"),
+                    "symbol": c2.get("symbol"),
+                    "current_price": c2.get("current_price", 0),
+                    "market_cap": c2.get("market_cap", 0),
+                    "market_cap_rank": c2.get("market_cap_rank"),
+                    "total_volume": c2.get("total_volume", 0),
+                    "price_change_24h": c2.get("price_change_percentage_24h", 0),
+                    "price_change_7d": c2.get("price_change_percentage_7d", 0),
+                },
+                "comparison": {
+                    "price_ratio": round(
+                        (c1.get("current_price", 0) or 0) / (c2.get("current_price", 1) or 1), 4
+                    ),
+                    "market_cap_diff": (c1.get("market_cap", 0) or 0) - (c2.get("market_cap", 0) or 0),
+                    "volume_ratio": round(
+                        (c1.get("total_volume", 0) or 0) / (c2.get("total_volume", 1) or 1), 4
+                    ),
+                },
+            }
+            cache[key] = result
+            stale_cache[key] = result
+            return result
+        except Exception:
+            return {"error": "Failed to compare coins"}
+
+    async def get_trending(self) -> dict:
+        key = "trending"
+        if key in cache:
+            return cache[key]
+        try:
+            data = await self._fetch_with_retry(
+                f"{settings.COINGECKO_BASE_URL}/search/trending", {}
+            )
+            coins = data.get("coins", [])
+            result = {
+                "trending": [
+                    {
+                        "id": c.get("item", {}).get("id"),
+                        "name": c.get("item", {}).get("name"),
+                        "symbol": c.get("item", {}).get("symbol"),
+                        "market_cap_rank": c.get("item", {}).get("market_cap_rank"),
+                        "price_btc": c.get("item", {}).get("price_btc"),
+                        "score": c.get("item", {}).get("score"),
+                    }
+                    for c in coins
+                ]
+            }
+            cache[key] = result
+            stale_cache[key] = result
+            return result
+        except Exception:
+            return stale_cache.get(key, {"trending": []})
+
 
 market_service = MarketService()

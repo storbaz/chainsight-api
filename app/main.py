@@ -59,8 +59,11 @@ def create_app() -> FastAPI:
             "docs": "/docs",
             "widget": "/widget",
             "endpoints": {
-                "market": "/v1/market/top",
-                "coin": "/v1/market/coin/{coin_id}",
+                "market_top": "/v1/market/top",
+                "coin_detail": "/v1/market/coin/{coin_id}",
+                "bulk_prices": "/v1/market/coins?ids=bitcoin,ethereum",
+                "compare": "/v1/market/compare?coin1=bitcoin&coin2=ethereum",
+                "trending": "/v1/market/trending",
                 "global": "/v1/market/global",
                 "fear_greed": "/v1/market/fear-greed",
                 "defi_protocols": "/v1/defi/protocols",
