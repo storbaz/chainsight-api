@@ -4,74 +4,130 @@
 <meta charset="UTF-8">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{width:380px;font-family:-apple-system,sans-serif;background:#0a0a1a;color:#fff;padding:16px}
-.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
-.header h1{font-size:16px}
-.header img{width:24px;height:24px}
-.settings{cursor:pointer;font-size:18px;opacity:0.6;transition:opacity 0.2s}
-.settings:hover{opacity:1}
+body{width:400px;max-height:600px;font-family:-apple-system,sans-serif;background:#0a0a1a;color:#fff;padding:0;overflow:hidden}
+.header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #1a1a3e}
+.header h1{font-size:15px}
+.header .actions{display:flex;gap:8px}
+.icon-btn{cursor:pointer;font-size:16px;opacity:0.6;transition:opacity 0.2s;background:none;border:none;color:#fff;padding:4px}
+.icon-btn:hover{opacity:1}
+.icon-btn.active{opacity:1;color:#00d4aa}
+.tabs{display:flex;border-bottom:1px solid #1a1a3e;padding:0 16px}
+.tab{flex:1;text-align:center;padding:10px 0;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:#666;cursor:pointer;border-bottom:2px solid transparent;transition:all 0.2s}
+.tab.active{color:#00d4aa;border-bottom-color:#00d4aa}
+.tab:hover{color:#aaa}
+.panel{display:none;padding:12px 16px;max-height:520px;overflow-y:auto}
+.panel.active{display:block}
 .fear-greed{background:#1a1a3e;border-radius:10px;padding:14px;text-align:center;margin-bottom:12px}
 .fear-greed .val{font-size:32px;font-weight:700}
 .fear-greed .lbl{font-size:12px;color:#888}
-.section-title{font-size:11px;text-transform:uppercase;color:#666;margin:12px 0 8px;letter-spacing:1px}
-.coin{background:#1a1a3e;border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.section-title{font-size:10px;text-transform:uppercase;color:#666;margin:12px 0 6px;letter-spacing:1px}
+.coin{background:#1a1a3e;border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
 .coin .left{display:flex;align-items:center;gap:8px}
-.coin .sym{font-weight:700;font-size:13px}
-.coin .name{font-size:11px;color:#888}
+.coin .sym{font-weight:700;font-size:12px}
+.coin .name{font-size:10px;color:#888}
 .coin .right{text-align:right}
-.coin .price{font-weight:700;font-size:13px}
-.coin .change{font-size:11px}
+.coin .price{font-weight:700;font-size:12px}
+.coin .change{font-size:10px}
 .up{color:#00d4aa}.dn{color:#ff4757}
-.whale{background:#1a1a3e;border-radius:8px;padding:10px;margin-bottom:6px}
-.whale .wh-top{display:flex;justify-content:space-between;margin-bottom:4px}
-.whale .wh-val{font-weight:700;color:#ff9f43;font-size:13px}
-.whale .wh-time{font-size:10px;color:#666}
-.whale .wh-addr{font-size:10px;color:#888;word-break:break-all}
-.gas-bar{background:#1a1a3e;border-radius:8px;padding:10px;display:flex;justify-content:space-around;margin-bottom:12px}
+.gas-bar{background:#1a1a3e;border-radius:8px;padding:10px;display:flex;justify-content:space-around;margin-bottom:8px}
 .gas-item{text-align:center}
-.gas-item .gl{font-size:10px;color:#888}
-.gas-item .gv{font-size:14px;font-weight:700}
-.footer{text-align:center;font-size:10px;color:#444;margin-top:12px}
+.gas-item .gl{font-size:9px;color:#888}
+.gas-item .gv{font-size:13px;font-weight:700}
+.whale{background:#1a1a3e;border-radius:8px;padding:8px;margin-bottom:4px}
+.whale .wh-top{display:flex;justify-content:space-between;margin-bottom:2px}
+.whale .wh-val{font-weight:700;color:#ff9f43;font-size:12px}
+.whale .wh-time{font-size:9px;color:#666}
+.whale .wh-addr{font-size:9px;color:#888;word-break:break-all}
+.whale .wh-chain{font-size:9px;color:#00d4aa;background:#0a0a1a;padding:1px 6px;border-radius:4px}
+.news-item{padding:6px 0;border-bottom:1px solid #1a1a3e}
+.news-item:last-child{border:none}
+.news-item a{color:#00d4aa;text-decoration:none;font-size:11px;line-height:1.3}
+.news-item .meta{font-size:9px;color:#666;margin-top:2px}
+.port-total{background:#1a1a3e;border-radius:10px;padding:14px;text-align:center;margin-bottom:12px}
+.port-total .val{font-size:24px;font-weight:700}
+.port-total .lbl{font-size:11px;color:#888}
+.port-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #1a1a3e;font-size:11px}
+.port-row:last-child{border:none}
+.port-add{display:flex;gap:4px;margin-bottom:8px}
+.port-add input{flex:1;padding:6px;border-radius:6px;border:1px solid #333;background:#0a0a1a;color:#fff;font-size:11px}
+.port-add select{width:60px;padding:6px;border-radius:6px;border:1px solid #333;background:#0a0a1a;color:#fff;font-size:11px}
+.port-add button{padding:6px 10px;border-radius:6px;border:none;background:#00d4aa;color:#000;font-weight:700;cursor:pointer;font-size:11px}
+.chain-select{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}
+.chain-btn{padding:4px 8px;border-radius:6px;border:1px solid #333;background:#0a0a1a;color:#888;font-size:10px;cursor:pointer;transition:all 0.2s}
+.chain-btn.active{border-color:#00d4aa;color:#00d4aa}
+.chain-btn:hover{border-color:#555}
+.footer{text-align:center;font-size:9px;color:#444;padding:8px 16px;border-top:1px solid #1a1a3e}
 .footer a{color:#00d4aa;text-decoration:none}
-.loading{text-align:center;color:#666;padding:20px;font-size:12px}
-.settings-panel{display:none;background:#1a1a3e;border-radius:10px;padding:14px;margin-bottom:12px}
+.settings-panel{display:none;background:#1a1a3e;border-radius:8px;padding:12px;margin-bottom:8px}
 .settings-panel.show{display:block}
-.settings-panel label{font-size:11px;color:#888;display:block;margin-bottom:4px}
-.settings-panel input,.settings-panel select{width:100%;padding:6px 8px;border-radius:6px;border:1px solid #333;background:#0a0a1a;color:#fff;font-size:12px;margin-bottom:8px}
-.settings-panel button{width:100%;padding:8px;border-radius:6px;border:none;background:#00d4aa;color:#000;font-weight:700;cursor:pointer;font-size:12px}
-.settings-panel button:hover{background:#00b894}
+.settings-panel label{font-size:10px;color:#888;display:block;margin-bottom:3px}
+.settings-panel input,.settings-panel select{width:100%;padding:5px 8px;border-radius:6px;border:1px solid #333;background:#0a0a1a;color:#fff;font-size:11px;margin-bottom:6px}
+.settings-panel button{width:100%;padding:7px;border-radius:6px;border:none;background:#00d4aa;color:#000;font-weight:700;cursor:pointer;font-size:11px}
+.loading{text-align:center;color:#666;padding:16px;font-size:11px}
+.empty{text-align:center;color:#444;padding:16px;font-size:11px}
 </style>
 </head>
 <body>
 <div class="header">
   <h1>ChainSight</h1>
-  <span class="settings" id="settingsBtn">&#9881;</span>
+  <div class="actions">
+    <button class="icon-btn" id="refreshBtn" title="Refresh">&#8635;</button>
+    <button class="icon-btn" id="settingsBtn" title="Settings">&#9881;</button>
+  </div>
 </div>
 
 <div class="settings-panel" id="settingsPanel">
-  <label>Whale Alert Threshold (ETH)</label>
+  <label>Whale Threshold</label>
   <input type="number" id="threshold" value="100" min="1">
-  <label>Top Coins to Show</label>
-  <select id="topCoins">
-    <option value="3">3</option>
-    <option value="5" selected>5</option>
-    <option value="10">10</option>
-  </select>
+  <label>Top Coins</label>
+  <select id="topCoins"><option value="3">3</option><option value="5" selected>5</option><option value="10">10</option></select>
+  <label>Default Chain</label>
+  <select id="defaultChain"><option value="ethereum" selected>Ethereum</option><option value="solana">Solana</option><option value="bsc">BSC</option><option value="polygon">Polygon</option><option value="arbitrum">Arbitrum</option><option value="base">Base</option><option value="optimism">Optimism</option><option value="avalanche">Avalanche</option></select>
   <button id="saveSettings">Save</button>
 </div>
 
-<div class="fear-greed" id="fg"><div class="val">--</div><div class="lbl">Loading...</div></div>
+<div class="tabs">
+  <div class="tab active" data-tab="market">Market</div>
+  <div class="tab" data-tab="portfolio">Portfolio</div>
+  <div class="tab" data-tab="whales">Whales</div>
+  <div class="tab" data-tab="news">News</div>
+</div>
 
-<div class="section-title">Top Coins</div>
-<div id="coins"><div class="loading">Loading prices...</div></div>
+<div class="panel active" id="panel-market">
+  <div class="fear-greed" id="fg"><div class="val">--</div><div class="lbl">Loading...</div></div>
+  <div class="section-title">Gas</div>
+  <div class="gas-bar" id="gas"><div class="loading">Loading...</div></div>
+  <div class="section-title">Top Coins</div>
+  <div id="coins"><div class="loading">Loading prices...</div></div>
+</div>
 
-<div class="section-title">Gas</div>
-<div class="gas-bar" id="gas"><div class="loading">Loading...</div></div>
+<div class="panel" id="panel-portfolio">
+  <div class="port-total" id="portTotal"><div class="val">$0.00</div><div class="lbl">Total Portfolio Value</div></div>
+  <div class="port-add">
+    <input id="portCoin" placeholder="coin id (bitcoin)">
+    <input id="portQty" type="number" value="1" min="0.001" step="0.1" style="width:50px">
+    <button id="portAddBtn">+</button>
+  </div>
+  <div id="portList"><div class="empty">Add coins to track your portfolio</div></div>
+</div>
 
-<div class="section-title">Recent Whales</div>
-<div id="whales"><div class="loading">Loading...</div></div>
+<div class="panel" id="panel-whales">
+  <div class="chain-select" id="chainSelect">
+    <button class="chain-btn active" data-chain="ethereum">ETH</button>
+    <button class="chain-btn" data-chain="bsc">BSC</button>
+    <button class="chain-btn" data-chain="polygon">POLY</button>
+    <button class="chain-btn" data-chain="arbitrum">ARB</button>
+    <button class="chain-btn" data-chain="base">BASE</button>
+    <button class="chain-btn" data-chain="solana">SOL</button>
+  </div>
+  <div id="whales"><div class="loading">Loading whales...</div></div>
+</div>
 
-<div class="footer">Powered by <a href="https://rapidapi.com/storbaz/api/chainsight" target="_blank">ChainSight API</a></div>
+<div class="panel" id="panel-news">
+  <div id="news"><div class="loading">Loading news...</div></div>
+</div>
+
+<div class="footer">Powered by <a href="https://rapidapi.com/storbaz/api/chainsight" target="_blank">ChainSight</a> &middot; <a href="https://chainsight-api.onrender.com/dashboard" target="_blank">Dashboard</a></div>
 
 <script src="popup.js"></script>
 </body>
