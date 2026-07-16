@@ -6,18 +6,18 @@ from app.config import settings
 
 cache = TTLCache(maxsize=100, ttl=300)
 stale_cache: dict = {}
-http_client = httpx.AsyncClient(timeout=10)
+http_client = httpx.AsyncClient(timeout=15)
 
 
 class MarketService:
 
-    async def _fetch_with_retry(self, url: str, params: dict, retries: int = 2) -> dict:
+    async def _fetch_with_retry(self, url: str, params: dict, retries: int = 3) -> dict:
         for attempt in range(retries):
             try:
                 resp = await http_client.get(url, params=params)
                 if resp.status_code == 429:
                     if attempt < retries - 1:
-                        await asyncio.sleep(2 * (attempt + 1))
+                        await asyncio.sleep(3 * (attempt + 1))
                         continue
                     raise Exception("Rate limited")
                 resp.raise_for_status()
@@ -25,7 +25,7 @@ class MarketService:
             except Exception:
                 if attempt == retries - 1:
                     raise
-                await asyncio.sleep(2 * (attempt + 1))
+                await asyncio.sleep(3 * (attempt + 1))
 
     async def _fetch_paprika_top(self, limit: int = 10) -> list[dict]:
         try:
