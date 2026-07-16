@@ -11,7 +11,7 @@ class Settings(BaseSettings):
 
     COINGECKO_BASE_URL: str = "https://api.coingecko.com/api/v3"
     DEFILLAMA_BASE_URL: str = "https://api.llama.fi"
-    ETHERSCAN_BASE_URL: str = "https://api.etherscan.io/api"
+    ETHERSCAN_BASE_URL: str = "https://api.etherscan.io/v2/api"
     FEAR_GREED_URL: str = "https://api.alternative.me/fng/"
 
     ETHERSCAN_API_KEY: str = ""

@@ -190,11 +190,43 @@ class MarketService:
                     "price_change_percentage": "7d",
                 },
             )
-            cache[key] = data
-            stale_cache[key] = data
-            return data
+            if data:
+                cache[key] = data
+                stale_cache[key] = data
+                return data
         except Exception:
-            return stale_cache.get(key, [])
+            pass
+        # Fallback: CoinPaprika
+        try:
+            resp = await http_client.get(
+                "https://api.coinpaprika.com/v1/tickers",
+                params={"limit": 200},
+            )
+            resp.raise_for_status()
+            paprika = resp.json()
+            id_set = {i.lower() for i in ids}
+            data = [
+                {
+                    "id": c.get("id"),
+                    "name": c.get("name"),
+                    "symbol": c.get("symbol"),
+                    "current_price": c.get("quotes", {}).get("USD", {}).get("price", 0),
+                    "market_cap": c.get("quotes", {}).get("USD", {}).get("market_cap", 0),
+                    "market_cap_rank": c.get("rank"),
+                    "total_volume": c.get("quotes", {}).get("USD", {}).get("volume_24h", 0),
+                    "price_change_percentage_24h": c.get("quotes", {}).get("USD", {}).get("percent_change_24h", 0),
+                    "price_change_percentage_7d": c.get("quotes", {}).get("USD", {}).get("percent_change_7d", 0),
+                }
+                for c in paprika
+                if c.get("id", "").lower() in id_set or c.get("symbol", "").lower() in id_set
+            ]
+            if data:
+                cache[key] = data
+                stale_cache[key] = data
+                return data
+        except Exception:
+            pass
+        return stale_cache.get(key, [])
 
     async def compare_coins(self, coin1: str, coin2: str, currency: str = "usd") -> dict:
         key = f"compare_{coin1}_{coin2}_{currency}"
@@ -210,47 +242,77 @@ class MarketService:
                     "price_change_percentage": "7d",
                 },
             )
-            if len(data) < 2:
-                return {"error": "One or both coins not found"}
-            c1, c2 = data[0], data[1]
-            result = {
-                "coin1": {
-                    "id": c1.get("id"),
-                    "name": c1.get("name"),
-                    "symbol": c1.get("symbol"),
-                    "current_price": c1.get("current_price", 0),
-                    "market_cap": c1.get("market_cap", 0),
-                    "market_cap_rank": c1.get("market_cap_rank"),
-                    "total_volume": c1.get("total_volume", 0),
-                    "price_change_24h": c1.get("price_change_percentage_24h", 0),
-                    "price_change_7d": c1.get("price_change_percentage_7d", 0),
-                },
-                "coin2": {
-                    "id": c2.get("id"),
-                    "name": c2.get("name"),
-                    "symbol": c2.get("symbol"),
-                    "current_price": c2.get("current_price", 0),
-                    "market_cap": c2.get("market_cap", 0),
-                    "market_cap_rank": c2.get("market_cap_rank"),
-                    "total_volume": c2.get("total_volume", 0),
-                    "price_change_24h": c2.get("price_change_percentage_24h", 0),
-                    "price_change_7d": c2.get("price_change_percentage_7d", 0),
-                },
-                "comparison": {
-                    "price_ratio": round(
-                        (c1.get("current_price", 0) or 0) / (c2.get("current_price", 1) or 1), 4
-                    ),
-                    "market_cap_diff": (c1.get("market_cap", 0) or 0) - (c2.get("market_cap", 0) or 0),
-                    "volume_ratio": round(
-                        (c1.get("total_volume", 0) or 0) / (c2.get("total_volume", 1) or 1), 4
-                    ),
-                },
-            }
-            cache[key] = result
-            stale_cache[key] = result
-            return result
         except Exception:
-            return {"error": "Failed to compare coins"}
+            data = []
+        # Fallback: CoinPaprika
+        if len(data) < 2:
+            try:
+                resp = await http_client.get(
+                    "https://api.coinpaprika.com/v1/tickers",
+                    params={"limit": 200},
+                )
+                resp.raise_for_status()
+                paprika = resp.json()
+                data = [
+                    c for c in paprika
+                    if c.get("id", "").lower() in [coin1.lower(), coin2.lower()]
+                    or c.get("symbol", "").lower() in [coin1.lower(), coin2.lower()]
+                ][:2]
+                if len(data) < 2:
+                    return {"error": "One or both coins not found. Use IDs like 'bitcoin', 'ethereum'"}
+                data = [
+                    {
+                        "id": c.get("id"),
+                        "name": c.get("name"),
+                        "symbol": c.get("symbol"),
+                        "current_price": c.get("quotes", {}).get("USD", {}).get("price", 0),
+                        "market_cap": c.get("quotes", {}).get("USD", {}).get("market_cap", 0),
+                        "market_cap_rank": c.get("rank"),
+                        "total_volume": c.get("quotes", {}).get("USD", {}).get("volume_24h", 0),
+                        "price_change_percentage_24h": c.get("quotes", {}).get("USD", {}).get("percent_change_24h", 0),
+                        "price_change_percentage_7d": c.get("quotes", {}).get("USD", {}).get("percent_change_7d", 0),
+                    }
+                    for c in data
+                ]
+            except Exception:
+                return {"error": "Failed to compare coins. Try again later."}
+        c1, c2 = data[0], data[1]
+        result = {
+            "coin1": {
+                "id": c1.get("id"),
+                "name": c1.get("name"),
+                "symbol": c1.get("symbol"),
+                "current_price": c1.get("current_price", 0),
+                "market_cap": c1.get("market_cap", 0),
+                "market_cap_rank": c1.get("market_cap_rank"),
+                "total_volume": c1.get("total_volume", 0),
+                "price_change_24h": c1.get("price_change_percentage_24h", 0),
+                "price_change_7d": c1.get("price_change_percentage_7d", 0),
+            },
+            "coin2": {
+                "id": c2.get("id"),
+                "name": c2.get("name"),
+                "symbol": c2.get("symbol"),
+                "current_price": c2.get("current_price", 0),
+                "market_cap": c2.get("market_cap", 0),
+                "market_cap_rank": c2.get("market_cap_rank"),
+                "total_volume": c2.get("total_volume", 0),
+                "price_change_24h": c2.get("price_change_percentage_24h", 0),
+                "price_change_7d": c2.get("price_change_percentage_7d", 0),
+            },
+            "comparison": {
+                "price_ratio": round(
+                    (c1.get("current_price", 0) or 0) / (c2.get("current_price", 1) or 1), 4
+                ),
+                "market_cap_diff": (c1.get("market_cap", 0) or 0) - (c2.get("market_cap", 0) or 0),
+                "volume_ratio": round(
+                    (c1.get("total_volume", 0) or 0) / (c2.get("total_volume", 1) or 1), 4
+                ),
+            },
+        }
+        cache[key] = result
+        stale_cache[key] = result
+        return result
 
     async def get_trending(self) -> dict:
         key = "trending"

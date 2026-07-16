@@ -16,6 +16,7 @@ class WhaleService:
             resp = await http_client.get(
                 settings.ETHERSCAN_BASE_URL,
                 params={
+                    "chainid": 1,
                     "module": "account",
                     "action": "txlistinternal",
                     "address": "0x00000000219ab540356cBB839Cbe05303d7705Fa",
@@ -57,11 +58,12 @@ class WhaleService:
         if "gas" in cache:
             return cache["gas"]
 
-        # Try Etherscan first
+        # Try Etherscan V2 first
         try:
             resp = await http_client.get(
                 settings.ETHERSCAN_BASE_URL,
                 params={
+                    "chainid": 1,
                     "module": "gastracker",
                     "action": "gasoracle",
                     "apikey": settings.ETHERSCAN_API_KEY,
