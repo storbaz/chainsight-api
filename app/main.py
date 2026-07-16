@@ -3,7 +3,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JavaScriptResponse
 from app.config import settings
-from app.api.v1 import market, defi, whales, health, alerts, news
+from app.api.v1 import market, defi, whales, health, alerts, news, admin
+from app.middleware.api_key import APIKeyMiddleware
 
 
 @asynccontextmanager
@@ -57,12 +58,15 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    app.add_middleware(APIKeyMiddleware)
+
     app.include_router(health.router, tags=["Health"])
     app.include_router(market.router, prefix="/v1")
     app.include_router(defi.router, prefix="/v1")
     app.include_router(whales.router, prefix="/v1")
     app.include_router(alerts.router, prefix="/v1")
     app.include_router(news.router, prefix="/v1")
+    app.include_router(admin.router, prefix="/v1")
 
     @app.api_route("/ping", methods=["GET", "HEAD"])
     async def ping():
