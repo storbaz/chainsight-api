@@ -350,6 +350,7 @@ class MarketService:
         if key in cache:
             return cache[key]
 
+        # Try CoinGecko first
         cg_days = days if days <= 365 else "max"
         try:
             data = await self._fetch_with_retry(
@@ -360,77 +361,27 @@ class MarketService:
             market_caps = data.get("market_caps", [])
             volumes = data.get("total_volumes", [])
 
-            result = {
-                "coin_id": coin_id,
-                "currency": currency,
-                "days": days,
-                "prices": [
-                    {"timestamp": int(p[0] / 1000), "price": p[1]}
-                    for p in prices
-                ],
-                "market_caps": [
-                    {"timestamp": int(p[0] / 1000), "market_cap": p[1]}
-                    for p in market_caps
-                ],
-                "volumes": [
-                    {"timestamp": int(p[0] / 1000), "volume": p[1]}
-                    for p in volumes
-                ],
-                "summary": {},
-            }
-
             if prices:
-                price_vals = [p[1] for p in prices]
-                result["summary"] = {
-                    "start_price": round(price_vals[0], 2),
-                    "end_price": round(price_vals[-1], 2),
-                    "high": round(max(price_vals), 2),
-                    "low": round(min(price_vals), 2),
-                    "change_pct": round(
-                        ((price_vals[-1] - price_vals[0]) / price_vals[0]) * 100, 2
-                    ) if price_vals[0] else 0,
-                }
-
-            cache[key] = result
-            stale_cache[key] = result
-            return result
-        except Exception:
-            pass
-
-        # Fallback: CoinPaprika OHLCV
-        try:
-            from datetime import datetime, timedelta
-            end = datetime.utcnow()
-            start = end - timedelta(days=days)
-            resp = await http_client.get(
-                f"https://api.coinpaprika.com/v1/coins/{coin_id}/ohlcv/historical",
-                params={
-                    "start": start.strftime("%Y-%m-%d"),
-                    "end": end.strftime("%Y-%m-%d"),
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            if data:
-                prices = [
-                    {"timestamp": int(datetime.fromisoformat(c["time_open"].replace("Z", "")).timestamp()), "price": c["close"]}
-                    for c in data
-                ]
-                volumes = [
-                    {"timestamp": int(datetime.fromisoformat(c["time_open"].replace("Z", "")).timestamp()), "volume": c["volume"]}
-                    for c in data
-                ]
-                price_vals = [p["price"] for p in prices]
                 result = {
                     "coin_id": coin_id,
                     "currency": currency,
                     "days": days,
-                    "source": "coinpaprika",
-                    "prices": prices,
-                    "market_caps": [],
-                    "volumes": volumes,
+                    "source": "coingecko",
+                    "prices": [
+                        {"timestamp": int(p[0] / 1000), "price": p[1]}
+                        for p in prices
+                    ],
+                    "market_caps": [
+                        {"timestamp": int(p[0] / 1000), "market_cap": p[1]}
+                        for p in market_caps
+                    ],
+                    "volumes": [
+                        {"timestamp": int(p[0] / 1000), "volume": p[1]}
+                        for p in volumes
+                    ],
                     "summary": {},
                 }
+                price_vals = [p[1] for p in prices]
                 if price_vals:
                     result["summary"] = {
                         "start_price": round(price_vals[0], 2),
@@ -447,7 +398,61 @@ class MarketService:
         except Exception:
             pass
 
-        return stale_cache.get(key, {"error": "Failed to fetch price history"})
+        # Fallback: Yahoo Finance (no rate limit)
+        yahoo_symbol = self._coin_id_to_yahoo(coin_id)
+        try:
+            import time
+            period2 = int(time.time())
+            period1 = period2 - (days * 86400)
+            resp = await http_client.get(
+                f"https://query1.finance.yahoo.com/v8/finance/chart/{yahoo_symbol}",
+                params={"period1": period1, "period2": period2, "interval": "1d"},
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            result_obj = data["chart"]["result"][0]
+            timestamps = result_obj["timestamp"]
+            quote = result_obj["indicators"]["quote"][0]
+            closes = quote["close"]
+            volumes_raw = quote["volume"]
+
+            prices = []
+            volumes = []
+            for i, ts in enumerate(timestamps):
+                if closes[i] is not None:
+                    prices.append({"timestamp": ts, "price": round(closes[i], 2)})
+                if volumes_raw[i] is not None:
+                    volumes.append({"timestamp": ts, "volume": volumes_raw[i]})
+
+            price_vals = [p["price"] for p in prices]
+            result = {
+                "coin_id": coin_id,
+                "currency": currency,
+                "days": days,
+                "source": "yahoo_finance",
+                "prices": prices,
+                "market_caps": [],
+                "volumes": volumes,
+                "summary": {},
+            }
+            if price_vals:
+                result["summary"] = {
+                    "start_price": round(price_vals[0], 2),
+                    "end_price": round(price_vals[-1], 2),
+                    "high": round(max(price_vals), 2),
+                    "low": round(min(price_vals), 2),
+                    "change_pct": round(
+                        ((price_vals[-1] - price_vals[0]) / price_vals[0]) * 100, 2
+                    ) if price_vals[0] else 0,
+                }
+            cache[key] = result
+            stale_cache[key] = result
+            return result
+        except Exception:
+            pass
+
+        return stale_cache.get(key, {"error": "Failed to fetch price history. Try coin_id like 'bitcoin' or 'ethereum'."})
 
     async def get_correlation(
         self, coin_ids: list[str], days: int = 30, vs_currency: str = "usd"
@@ -474,24 +479,24 @@ class MarketService:
                 except Exception:
                     pass
 
-                # Fallback: CoinPaprika
+                # Fallback: Yahoo Finance
                 if len(prices) < 3:
+                    yahoo_sym = self._coin_id_to_yahoo(cid)
                     try:
-                        from datetime import datetime, timedelta
-                        end = datetime.utcnow()
-                        start = end - timedelta(days=days)
+                        import time
+                        period2 = int(time.time())
+                        period1 = period2 - (days * 86400)
                         resp = await http_client.get(
-                            f"https://api.coinpaprika.com/v1/coins/{cid}/ohlcv/historical",
-                            params={
-                                "start": start.strftime("%Y-%m-%d"),
-                                "end": end.strftime("%Y-%m-%d"),
-                            },
+                            f"https://query1.finance.yahoo.com/v8/finance/chart/{yahoo_sym}",
+                            params={"period1": period1, "period2": period2, "interval": "1d"},
+                            headers={"User-Agent": "Mozilla/5.0"},
                         )
                         resp.raise_for_status()
-                        paprika_data = resp.json()
-                        if paprika_data:
-                            prices = [c["close"] for c in paprika_data]
+                        yahoo_data = resp.json()
+                        closes = yahoo_data["chart"]["result"][0]["indicators"]["quote"][0]["close"]
+                        prices = [c for c in closes if c is not None]
                     except Exception:
+                        pass
                         pass
 
             all_series[cid] = prices
@@ -536,7 +541,8 @@ class MarketService:
 
     async def _fetch_sp500_prices(self, days: int) -> list[float]:
         try:
-            period2 = int(asyncio.get_event_loop().time())
+            import time
+            period2 = int(time.time())
             period1 = period2 - (days * 86400)
             resp = await http_client.get(
                 "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC",
@@ -548,6 +554,52 @@ class MarketService:
             return data["chart"]["result"][0]["indicators"]["quote"][0]["close"]
         except Exception:
             return []
+
+    @staticmethod
+    def _coin_id_to_yahoo(coin_id: str) -> str:
+        mapping = {
+            "bitcoin": "BTC-USD",
+            "ethereum": "ETH-USD",
+            "binancecoin": "BNB-USD",
+            "ripple": "XRP-USD",
+            "cardano": "ADA-USD",
+            "solana": "SOL-USD",
+            "polkadot": "DOT-USD",
+            "dogecoin": "DOGE-USD",
+            "avalanche-2": "AVAX-USD",
+            "chainlink": "LINK-USD",
+            "uniswap": "UNI-USD",
+            "litecoin": "LTC-USD",
+            "stellar": "XLM-USD",
+            "monero": "XMR-USD",
+            "tron": "TRX-USD",
+            "polygon-pos": "MATIC-USD",
+            "matic-network": "MATIC-USD",
+            "cosmos": "ATOM-USD",
+            "near": "NEAR-USD",
+            "aptos": "APT-USD",
+            "sui": "SUI-USD",
+            "arbitrum": "ARB-USD",
+            "optimism": "OP-USD",
+            "filecoin": "FIL-USD",
+            "aave": "AAVE-USD",
+            "maker": "MKR-USD",
+            "the-graph": "GRT-USD",
+            "algorand": "ALGO-USD",
+            "vechain": "VET-USD",
+            "internet-computer": "ICP-USD",
+            "hedera-hashgraph": "HBAR-USD",
+            "render-token": "RNDR-USD",
+            "injective-protocol": "INJ-USD",
+            "sei-network": "SEI-USD",
+            "pepe": "PEPE-USD",
+            "bonk": "BONK-USD",
+            "floki": "FLOKI-USD",
+        }
+        cid = coin_id.lower().replace("_", "-")
+        if cid in mapping:
+            return mapping[cid]
+        return f"{cid.upper()}-USD"
 
     @staticmethod
     def _pearson(x: list[float], y: list[float]) -> float:
