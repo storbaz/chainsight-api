@@ -1,9 +1,9 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JavaScriptResponse
 from app.config import settings
-from app.api.v1 import market, defi, whales, health, alerts
+from app.api.v1 import market, defi, whales, health, alerts, news
 
 
 @asynccontextmanager
@@ -62,6 +62,7 @@ def create_app() -> FastAPI:
     app.include_router(defi.router, prefix="/v1")
     app.include_router(whales.router, prefix="/v1")
     app.include_router(alerts.router, prefix="/v1")
+    app.include_router(news.router, prefix="/v1")
 
     @app.api_route("/ping", methods=["GET", "HEAD"])
     async def ping():
@@ -90,6 +91,7 @@ def create_app() -> FastAPI:
                 "whale_txs": "/v1/whales/eth",
                 "gas": "/v1/whales/gas",
                 "webhook_alerts": "/v1/alerts/webhook",
+                "news": "/v1/market/news",
             },
         }
 
@@ -100,6 +102,7 @@ def create_app() -> FastAPI:
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChainSight Widget Preview</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,sans-serif;background:#0a0a1a;color:white;padding:20px}
@@ -121,27 +124,45 @@ body{font-family:-apple-system,sans-serif;background:#0a0a1a;color:white;padding
 .up{color:#00d4aa}.down{color:#ff4757}
 .footer{text-align:center;margin-top:20px;font-size:11px;color:#666}
 .footer a{color:#00d4aa;text-decoration:none}
+.code-box{background:#1a1a3e;border-radius:8px;padding:16px;margin:20px auto;max-width:600px;font-family:monospace;font-size:13px;color:#00d4aa;word-break:break-all}
+h3{text-align:center;margin:30px 0 10px;color:#888}
 </style>
 </head>
 <body>
-<div class="widget">
-<div class="header"><h2>🔍 ChainSight</h2><p>Real-time crypto data</p></div>
-<div class="fear-greed" id="fg"><div class="value">--</div><div class="label">Loading...</div></div>
-<div class="coins" id="coins"></div>
+<h2 style="text-align:center">ChainSight Widget Preview</h2>
+<p style="text-align:center;color:#888;margin-bottom:20px">Embed this on your site:</p>
+<div class="code-box">&lt;script src="https://chainsight-api.onrender.com/widget.js" data-coins="5" data-theme="dark"&gt;&lt;/script&gt;</div>
+<div id="chainsight-widget"></div>
 <div class="footer">Powered by <a href="https://rapidapi.com/storbaz/api/chainsight" target="_blank">ChainSight API</a></div>
-</div>
-<script>
-const API="https://chainsight-api.onrender.com";
-async function load(){try{
-const[t,r]=await Promise.all([fetch(API+"/v1/market/top?limit=5"),fetch(API+"/v1/market/fear-greed")]);
-const top=await t.json(),fg=await r.json();
-document.getElementById("fg").innerHTML=`<div class="value">${fg.value}</div><div class="label">${fg.classification}</div>`;
-document.getElementById("coins").innerHTML=top.map(c=>{const ch=c.price_change_percentage_24h||0;return`<div class="coin"><div class="coin-info"><span class="coin-symbol">${c.symbol.toUpperCase()}</span><span class="coin-name">${c.name}</span></div><div class="coin-price"><div class="coin-value">$${c.current_price.toLocaleString()}</div><div class="coin-change ${ch>=0?"up":"down"}">${ch>=0?"+":""}${ch.toFixed(1)}%</div></div></div>`}).join("");
-}catch(e){console.error(e)}}
-load();setInterval(load,60000);
-</script>
+<script src="/widget.js" data-coins="5" data-theme="dark"></script>
 </body>
 </html>"""
+
+    @app.get("/widget.js", response_class=JavaScriptResponse, tags=["Widget"])
+    async def widget_js():
+        js = """
+(function(){
+  var s=document.currentScript;
+  var coins=s.getAttribute("data-coins")||5;
+  var theme=s.getAttribute("data-theme")||"dark";
+  var API="https://chainsight-api.onrender.com";
+  var host=document.getElementById("chainsight-widget");
+  if(!host){host=document.createElement("div");host.id="chainsight-widget";s.parentNode.insertBefore(host,s.nextSibling);}
+  var bg=theme==="light"?"#ffffff":"#0a0a1a";
+  var card=theme==="light"?"#f0f0f5":"#1a1a3e";
+  var txt=theme==="light"?"#333":"#fff";
+  var sub=theme==="light"?"#666":"#888";
+  host.innerHTML='<style>#cs-w{font-family:-apple-system,sans-serif;background:'+bg+';color:'+txt+';padding:16px;border-radius:12px;max-width:400px;margin:0 auto}#cs-w .h{text-align:center;margin-bottom:12px}#cs-w .h h3{font-size:16px;margin:0}#cs-w .h p{font-size:11px;color:'+sub+'}#cs-w .fg{background:'+card+';border-radius:10px;padding:16px;text-align:center;margin-bottom:12px}#cs-w .fg .v{font-size:36px;font-weight:700}#cs-w .fg .l{font-size:12px;color:'+sub+'}#cs-w .cl{display:grid;gap:8px}#cs-w .c{background:'+card+';border-radius:8px;padding:10px;display:flex;justify-content:space-between;align-items:center}#cs-w .ci{display:flex;align-items:center;gap:8px}#cs-w .cs{font-weight:700;font-size:13px}#cs-w .cn{font-size:11px;color:'+sub+'}#cs-w .cp{text-align:right}#cs-w .cv{font-weight:700;font-size:13px}#cs-w .cc{font-size:11px}#cs-w .up{color:#00d4aa}#cs-w .dn{color:#ff4757}#cs-w .ft{text-align:center;margin-top:12px;font-size:10px;color:#666}#cs-w .ft a{color:#00d4aa;text-decoration:none}</style><div id="cs-w"><div class="h"><h3>ChainSight</h3><p>Real-time crypto data</p></div><div class="fg" id="cs-fg"><div class="v">--</div><div class="l">Loading...</div></div><div class="cl" id="cs-coins"></div><div class="ft">Powered by <a href="https://rapidapi.com/storbaz/api/chainsight" target="_blank">ChainSight</a></div></div>';
+  async function load(){try{
+    var t=await fetch(API+"/v1/market/top?limit="+coins);
+    var r=await fetch(API+"/v1/market/fear-greed");
+    var td=await t.json(),rd=await r.json();
+    document.getElementById("cs-fg").innerHTML='<div class="v">'+rd.value+'</div><div class="l">'+rd.classification+'</div>';
+    document.getElementById("cs-coins").innerHTML=td.map(function(c){var ch=c.price_change_percentage_24h||0;return'<div class="c"><div class="ci"><span class="cs">'+c.symbol.toUpperCase()+'</span><span class="cn">'+c.name+'</span></div><div class="cp"><div class="cv">$'+c.current_price.toLocaleString()+'</div><div class="cc '+(ch>=0?"up":"dn")+'">'+(ch>=0?"+":"")+ch.toFixed(1)+'%</div></div></div>'}).join("");
+  }catch(e){}}
+  load();setInterval(load,60000);
+})();"""
+        return JavaScriptResponse(content=js, media_type="application/javascript")
 
     return app
 
