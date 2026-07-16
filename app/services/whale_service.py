@@ -17,12 +17,12 @@ class WhaleService:
                 settings.ETHERSCAN_BASE_URL,
                 params={
                     "module": "account",
-                    "action": "txlist",
+                    "action": "txlistinternal",
                     "address": "0x00000000219ab540356cBB839Cbe05303d7705Fa",
                     "startblock": 0,
                     "endblock": 99999999,
                     "page": 1,
-                    "offset": 20,
+                    "offset": 50,
                     "sort": "desc",
                     "apikey": settings.ETHERSCAN_API_KEY,
                 },
@@ -30,7 +30,7 @@ class WhaleService:
             resp.raise_for_status()
             data = resp.json().get("result", [])
             if isinstance(data, str):
-                return cache.get(key, [])
+                return cache.get(key, [{"error": data}])
             results = []
             for tx in data:
                 value_eth = int(tx.get("value", "0")) / 1e18
@@ -46,10 +46,12 @@ class WhaleService:
                         "block_number": int(tx.get("blockNumber", 0)),
                         "timestamp": tx.get("timeStamp", ""),
                     })
+            if not results:
+                results = [{"message": "No whale transactions found in recent blocks"}]
             cache[key] = results
             return results
-        except Exception:
-            return cache.get(key, [])
+        except Exception as e:
+            return cache.get(key, [{"error": str(e)}])
 
     async def get_gas_estimate(self) -> dict:
         if "gas" in cache:
