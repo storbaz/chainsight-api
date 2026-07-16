@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Query, HTTPException
 from app.services.market_service import market_service
 from app.services.sentiment_service import sentiment_service
+from app.services.chains import CHAIN_TOKEN_MAP
 
 router = APIRouter(prefix="/market", tags=["Market"])
 
@@ -99,3 +100,14 @@ async def get_fear_greed_index():
 @router.get("/fear-greed/history")
 async def get_fear_greed_history(limit: int = Query(30, ge=1, le=365)):
     return await sentiment_service.get_fear_greed_history(limit=limit)
+
+
+@router.get("/chain/{chain}/tokens")
+async def get_chain_tokens(
+    chain: str,
+    currency: str = Query("usd"),
+):
+    if chain not in CHAIN_TOKEN_MAP:
+        raise HTTPException(status_code=400, detail=f"Chain '{chain}' not supported. Use: {list(CHAIN_TOKEN_MAP.keys())}")
+    token_ids = list(CHAIN_TOKEN_MAP[chain].values())
+    return await market_service.get_coins_bulk(ids=token_ids, currency=currency)

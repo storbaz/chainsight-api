@@ -1,0 +1,113 @@
+CHAINS = {
+    "ethereum": {
+        "name": "Ethereum",
+        "symbol": "ETH",
+        "chain_id": 1,
+        "explorer_api": "https://api.etherscan.io/v2/api",
+        "explorer_url": "https://etherscan.io",
+        "rpc": "https://eth.llamarpc.com",
+        "native_price_id": "ethereum",
+        "gas_api": "etherscan",
+    },
+    "solana": {
+        "name": "Solana",
+        "symbol": "SOL",
+        "chain_id": "solana",
+        "explorer_api": "https://public-api.solscan.io",
+        "explorer_url": "https://solscan.io",
+        "rpc": "https://api.mainnet-beta.solana.com",
+        "native_price_id": "solana",
+        "gas_api": "solana",
+    },
+    "bsc": {
+        "name": "BNB Chain",
+        "symbol": "BNB",
+        "chain_id": 56,
+        "explorer_api": "https://api.etherscan.io/v2/api",
+        "explorer_url": "https://bscscan.com",
+        "rpc": "https://bsc.llamarpc.com",
+        "native_price_id": "binancecoin",
+        "gas_api": "etherscan",
+    },
+    "polygon": {
+        "name": "Polygon",
+        "symbol": "MATIC",
+        "chain_id": 137,
+        "explorer_api": "https://api.etherscan.io/v2/api",
+        "explorer_url": "https://polygonscan.com",
+        "rpc": "https://polygon.llamarpc.com",
+        "native_price_id": "matic-network",
+        "gas_api": "etherscan",
+    },
+    "arbitrum": {
+        "name": "Arbitrum",
+        "symbol": "ETH",
+        "chain_id": 42161,
+        "explorer_api": "https://api.etherscan.io/v2/api",
+        "explorer_url": "https://arbiscan.io",
+        "rpc": "https://arb1.arbitrum.io/rpc",
+        "native_price_id": "ethereum",
+        "gas_api": "etherscan",
+    },
+    "base": {
+        "name": "Base",
+        "symbol": "ETH",
+        "chain_id": 8453,
+        "explorer_api": "https://api.etherscan.io/v2/api",
+        "explorer_url": "https://basescan.org",
+        "rpc": "https://mainnet.base.org",
+        "native_price_id": "ethereum",
+        "gas_api": "etherscan",
+    },
+    "optimism": {
+        "name": "Optimism",
+        "symbol": "ETH",
+        "chain_id": 10,
+        "explorer_api": "https://api.etherscan.io/v2/api",
+        "explorer_url": "https://optimistic.etherscan.io",
+        "rpc": "https://mainnet.optimism.io",
+        "native_price_id": "ethereum",
+        "gas_api": "etherscan",
+    },
+    "avalanche": {
+        "name": "Avalanche",
+        "symbol": "AVAX",
+        "chain_id": 43114,
+        "explorer_api": "https://api.etherscan.io/v2/api",
+        "explorer_url": "https://snowtrace.io",
+        "rpc": "https://avalanche.llamarpc.com",
+        "native_price_id": "avalanche-2",
+        "gas_api": "etherscan",
+    },
+}
+
+
+WHALE_ADDRESSES = {
+    "ethereum": [
+        {"address": "0x00000000219ab540356cBB839Cbe05303d7705Fa", "label": "ETH 2.0 Deposit Contract"},
+        {"address": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", "label": "Wrapped ETH (WETH)"},
+    ],
+    "bsc": [
+        {"address": "0x0000000000000000000000000000000000001004", "label": "BSC Native Staking"},
+    ],
+    "polygon": [
+        {"address": "0x0000000000000000000000000000000000001010", "label": "MATIC Staking"},
+    ],
+    "arbitrum": [],
+    "base": [],
+    "optimism": [],
+    "avalanche": [],
+    "solana": [],
+}
+
+
+CHAIN_TOKEN_MAP = {
+    "ethereum": {"usdt": "tether", "usdc": "usd-coin", "dai": "dai", "link": "chainlink", "uniswap": "uniswap", "aave": "aave", "lido": "lido-dao"},
+    "bsc": {"usdt": "tether", "usdc": "usd-coin", "cake": "pancakeswap-token", "xvs": "venus", "btcb": "bitcoin-bep2"},
+    "polygon": {"usdt": "tether", "usdc": "usd-coin", "quick": "quickswap", "aave": "aave"},
+    "arbitrum": {"usdt": "tether", "usdc": "usd-coin", "gmx": "gmx", "pendle": "pendle"},
+    "base": {"usdt": "tether", "usdc": "usd-coin", "aerodrome": "aerodrome-finance", "brett": "brett"},
+    "optimism": {"usdt": "tether", "usdc": "usd-coin", "op": "optimism", "velo": "velodrome-finance"},
+    "avalanche": {"usdt": "tether", "usdc": "usd-coin", "joe": "joe", "png": "pangolin"},
+    "solana": {"usdt": "tether", "usdc": "usd-coin", "raydium": "raydium", "jup": "jupiter-exchange-solana", "bonk": "bonk"},
+}
