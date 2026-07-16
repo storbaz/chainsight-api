@@ -2,7 +2,8 @@ import httpx
 from cachetools import TTLCache
 from app.config import settings
 
-cache = TTLCache(maxsize=100, ttl=120)
+cache = TTLCache(maxsize=100, ttl=600)
+http_client = httpx.AsyncClient(timeout=30)
 
 
 class WhaleService:
@@ -11,8 +12,8 @@ class WhaleService:
         key = f"whales_{min_value_eth}"
         if key in cache:
             return cache[key]
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(
+        try:
+            resp = await http_client.get(
                 settings.ETHERSCAN_BASE_URL,
                 params={
                     "module": "account",
@@ -21,7 +22,7 @@ class WhaleService:
                     "startblock": 0,
                     "endblock": 99999999,
                     "page": 1,
-                    "offset": 50,
+                    "offset": 20,
                     "sort": "desc",
                     "apikey": settings.ETHERSCAN_API_KEY,
                 },
@@ -29,7 +30,7 @@ class WhaleService:
             resp.raise_for_status()
             data = resp.json().get("result", [])
             if isinstance(data, str):
-                return []
+                return cache.get(key, [])
             results = []
             for tx in data:
                 value_eth = int(tx.get("value", "0")) / 1e18
@@ -47,12 +48,14 @@ class WhaleService:
                     })
             cache[key] = results
             return results
+        except Exception:
+            return cache.get(key, [])
 
     async def get_gas_estimate(self) -> dict:
         if "gas" in cache:
             return cache["gas"]
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(
+        try:
+            resp = await http_client.get(
                 settings.ETHERSCAN_BASE_URL,
                 params={
                     "module": "gastracker",
@@ -63,7 +66,7 @@ class WhaleService:
             resp.raise_for_status()
             result = resp.json().get("result", {})
             if isinstance(result, str):
-                return {"low": 0, "average": 0, "fast": 0, "base_fee": 0, "last_block": 0}
+                return cache.get("gas", {"low": 0, "average": 0, "fast": 0, "base_fee": 0, "last_block": 0})
             gas = {
                 "low": float(result.get("SafeGasPrice", 0)),
                 "average": float(result.get("ProposeGasPrice", 0)),
@@ -73,6 +76,8 @@ class WhaleService:
             }
             cache["gas"] = gas
             return gas
+        except Exception:
+            return cache.get("gas", {"low": 0, "average": 0, "fast": 0, "base_fee": 0, "last_block": 0})
 
 
 whale_service = WhaleService()
