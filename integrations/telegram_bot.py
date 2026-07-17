@@ -347,7 +347,7 @@ async def webhook(request: Request):
     return {"ok": True}
 
 
-@api.get("/")
+@api.get("/", methods=["GET", "HEAD"])
 async def root():
     return {"status": "running", "bot": "ChainSightBot"}
 
