@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ChainSight API - Unified Crypto Intelligence</title>
-    <meta name="description" content="Crypto Intelligence API — Prices, DeFi Analytics, Whale Tracking, and Sentiment in one place. Free tier available.">
-    <meta name="keywords" content="crypto API, bitcoin price API, DeFi analytics, Fear and Greed Index, whale tracking, blockchain API">
+    <meta name="description" content="Crypto Intelligence API — Prices, DeFi, Whale Tracking, Honeypot Detection, Alpha Signals, and Embeddable Widgets. Free tier available.">
+    <meta name="keywords" content="crypto API, bitcoin price API, DeFi analytics, honeypot detection, whale tracking, embeddable widget, alpha signals, Fear and Greed Index">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1a1a2e; background: #fff; }
@@ -173,7 +173,7 @@
 <section class="hero">
     <div class="badge">Free tier available</div>
     <h1>ChainSight API</h1>
-    <p>Unified Crypto Intelligence — Prices, DeFi Analytics, Whale Tracking, and Sentiment in one place.</p>
+    <p>Unified Crypto Intelligence — Prices, DeFi Analytics, Whale Tracking, Honeypot Detection, Alpha Signals, and Embeddable Widgets.</p>
     <a href="https://rapidapi.com/storbaz/api/chainsight" class="cta">Try Free on RapidAPI</a>
 </section>
 
@@ -188,12 +188,22 @@
         <div class="card">
             <div class="icon">🐋</div>
             <h3>Whale Tracking</h3>
-            <p>Monitor large ETH transactions in real-time. Track smart money movements.</p>
+            <p>Monitor large ETH/SOL/BNB transactions. Track smart money across 8 chains.</p>
         </div>
         <div class="card">
-            <div class="icon">💰</div>
-            <h3>DeFi Analytics</h3>
-            <p>Protocol TVL rankings, yield comparison, and stablecoin data across all chains.</p>
+            <div class="icon">🛡️</div>
+            <h3>Honeypot Detection</h3>
+            <p>Check any token contract before buying. Detect scams, hidden taxes, and rug pull risks instantly.</p>
+        </div>
+        <div class="card">
+            <div class="icon">📈</div>
+            <h3>Alpha Signals</h3>
+            <p>RSI/MACD momentum indicators, whale accumulation alerts, and volume anomaly detection.</p>
+        </div>
+        <div class="card">
+            <div class="icon">⚡</div>
+            <h3>Embeddable Widgets</h3>
+            <p>Add real-time crypto data to any website. Free widgets with watermark, Pro for white-label.</p>
         </div>
         <div class="card">
             <div class="icon">😱</div>
@@ -201,14 +211,19 @@
             <p>Real-time market sentiment with historical data. Track fear and greed over time.</p>
         </div>
         <div class="card">
-            <div class="icon">⛽</div>
-            <h3>Gas Estimator</h3>
-            <p>Real-time Ethereum gas prices. Low, average, and fast estimates in Gwei.</p>
+            <div class="icon">💰</div>
+            <h3>DeFi Analytics</h3>
+            <p>Protocol TVL rankings, yield comparison, and stablecoin data across all chains.</p>
         </div>
         <div class="card">
-            <div class="icon">🔍</div>
-            <h3>Coin Search</h3>
-            <p>Search any cryptocurrency by name or symbol. Get detailed data instantly.</p>
+            <div class="icon">⛽</div>
+            <h3>Gas Estimator</h3>
+            <p>Real-time gas prices across 8 chains. ETH, BSC, Polygon, Arbitrum, Base, Optimism.</p>
+        </div>
+        <div class="card">
+            <div class="icon">📰</div>
+            <h3>Crypto News</h3>
+            <p>Aggregated from CoinTelegraph, CryptoNews, Bitcoin Magazine. Filtered and fresh.</p>
         </div>
     </div>
 </section>
@@ -318,7 +333,47 @@ GET /v1/market/top?limit=10
         </div>
         <div class="endpoint-item">
             <div><span class="method">GET</span> <span class="path">/v1/whales/gas</span></div>
-            <div class="desc">Gas price estimates</div>
+            <div class="desc">Gas price estimates (8 chains)</div>
+        </div>
+    </div>
+
+    <div class="endpoint-group">
+        <h3>🛡️ Security <span style="background:#00d4aa;color:#0a0a1a;padding:2px 8px;border-radius:10px;font-size:0.7rem;vertical-align:middle">PRO</span></h3>
+        <div class="endpoint-item">
+            <div><span class="method">GET</span> <span class="path">/v1/security/honeypot/{address}</span></div>
+            <div class="desc">Honeypot detection for any token</div>
+        </div>
+        <div class="endpoint-item">
+            <div><span class="method">GET</span> <span class="path">/v1/security/token/{address}</span></div>
+            <div class="desc">Full token security audit</div>
+        </div>
+    </div>
+
+    <div class="endpoint-group">
+        <h3>📈 Alpha Signals <span style="background:#00d4aa;color:#0a0a1a;padding:2px 8px;border-radius:10px;font-size:0.7rem;vertical-align:middle">PRO</span></h3>
+        <div class="endpoint-item">
+            <div><span class="method">GET</span> <span class="path">/v1/signals/momentum</span></div>
+            <div class="desc">RSI, MACD, SMA momentum signals</div>
+        </div>
+        <div class="endpoint-item">
+            <div><span class="method">GET</span> <span class="path">/v1/signals/whale-accumulation</span></div>
+            <div class="desc">Whale accumulation detection</div>
+        </div>
+        <div class="endpoint-item">
+            <div><span class="method">GET</span> <span class="path">/v1/signals/volume-anomaly</span></div>
+            <div class="desc">Unusual volume activity</div>
+        </div>
+    </div>
+
+    <div class="endpoint-group">
+        <h3>⚡ Widgets <span style="background:#ff9f43;color:#0a0a1a;padding:2px 8px;border-radius:10px;font-size:0.7rem;vertical-align:middle">FREE + PRO</span></h3>
+        <div class="endpoint-item">
+            <div><span class="method">GET</span> <span class="path">/widget.js</span></div>
+            <div class="desc">Embeddable JS widget (card, ticker, portfolio, whale alerts)</div>
+        </div>
+        <div class="endpoint-item">
+            <div><span class="method">GET</span> <span class="path">/widget</span></div>
+            <div class="desc">Interactive widget preview & code generator</div>
         </div>
     </div>
 </section>
@@ -330,36 +385,32 @@ GET /v1/market/top?limit=10
             <h3>Free</h3>
             <div class="price">$0<span>/month</span></div>
             <ul>
-                <li>500 requests/month</li>
-                <li>All endpoints</li>
+                <li>100 requests/day</li>
+                <li>Market data & sentiment</li>
+                <li>Basic widgets (with watermark)</li>
                 <li>No credit card</li>
             </ul>
         </div>
         <div class="plan featured">
             <h3>Pro</h3>
-            <div class="price">$9<span>/month</span></div>
+            <div class="price">$9.99<span>/month</span></div>
             <ul>
-                <li>10,000 requests/month</li>
-                <li>All endpoints</li>
+                <li>10,000 requests/day</li>
+                <li>Honeypot detection</li>
+                <li>Alpha signals (RSI/MACD)</li>
+                <li>White-label widgets</li>
                 <li>Priority support</li>
             </ul>
         </div>
         <div class="plan">
-            <h3>Ultra</h3>
-            <div class="price">$29<span>/month</span></div>
+            <h3>Enterprise</h3>
+            <div class="price">$49.99<span>/month</span></div>
             <ul>
-                <li>50,000 requests/month</li>
-                <li>All endpoints</li>
-                <li>Higher rate limits</li>
-            </ul>
-        </div>
-        <div class="plan">
-            <h3>Mega</h3>
-            <div class="price">$79<span>/month</span></div>
-            <ul>
-                <li>200,000 requests/month</li>
-                <li>All endpoints</li>
-                <li>Enterprise support</li>
+                <li>Unlimited requests</li>
+                <li>Webhook alerts</li>
+                <li>Batch security checks</li>
+                <li>Custom widget themes</li>
+                <li>Dedicated support</li>
             </ul>
         </div>
     </div>
@@ -372,7 +423,7 @@ GET /v1/market/top?limit=10
 </section>
 
 <footer>
-    <p>ChainSight API &copy; 2026 | Data from CoinGecko, DeFiLlama, Etherscan, Alternative.me</p>
+    <p>ChainSight API &copy; 2026 | Data from CoinGecko, DeFiLlama, Etherscan, GoPlus Security, Alternative.me</p>
 </footer>
 
 </body>
