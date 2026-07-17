@@ -1,3 +1,4 @@
+import asyncio
 import httpx
 from cachetools import TTLCache
 from app.config import settings
@@ -78,7 +79,8 @@ class WhaleService:
 
         all_results = []
         chain_id = chain_conf.get("chain_id", 1)
-        for addr_info in addresses[:3]:
+
+        async def _fetch_addr_txs(addr_info: dict) -> list[dict]:
             try:
                 resp = await http_client.get(
                     settings.ETHERSCAN_BASE_URL,
@@ -98,13 +100,13 @@ class WhaleService:
                 resp.raise_for_status()
                 data = resp.json().get("result", [])
                 if isinstance(data, str):
-                    continue
-
+                    return []
                 symbol = chain_conf["symbol"]
+                results = []
                 for tx in data:
                     value_native = int(tx.get("value", "0")) / 1e18
                     if value_native >= min_value:
-                        all_results.append({
+                        results.append({
                             "chain": chain,
                             "label": addr_info.get("label", ""),
                             "hash": tx.get("hash"),
@@ -118,8 +120,15 @@ class WhaleService:
                             "timestamp": tx.get("timeStamp", ""),
                             "explorer_url": f"{chain_conf['explorer_url']}/tx/{tx.get('hash', '')}",
                         })
+                return results
             except Exception:
-                continue
+                return []
+
+        addr_results = await asyncio.gather(
+            *[_fetch_addr_txs(a) for a in addresses[:3]]
+        )
+        for r in addr_results:
+            all_results.extend(r)
 
         all_results.sort(key=lambda x: x.get("value", 0), reverse=True)
         if not all_results:
@@ -267,10 +276,9 @@ class WhaleService:
         return cache.get(key, {"error": f"Failed to get gas for {chain}. Set ETHERSCAN_API_KEY on Render."})
 
     async def get_all_chains_gas(self) -> list[dict]:
-        results = []
-        for chain in CHAINS:
-            gas = await self.get_gas_estimate(chain)
-            results.append(gas)
+        results = await asyncio.gather(
+            *[self.get_gas_estimate(chain) for chain in CHAINS]
+        )
         return results
 
 
