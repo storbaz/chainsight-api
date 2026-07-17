@@ -1,11 +1,13 @@
 import asyncio
+import time
 import httpx
 from cachetools import TTLCache
 from app.config import settings
 from app.services.chains import CHAINS, WHALE_ADDRESSES
 
-cache = TTLCache(maxsize=200, ttl=300)
-http_client = httpx.AsyncClient(timeout=30)
+cache = TTLCache(maxsize=200, ttl=600)
+stale_cache: dict = {}
+http_client = httpx.AsyncClient(timeout=15)
 
 
 class WhaleService:
@@ -21,10 +23,24 @@ class WhaleService:
         if key in cache:
             return cache[key]
 
+        if key in stale_cache:
+            asyncio.create_task(self._refresh_whales(chain, chain_conf, min_value, limit, key))
+            return stale_cache[key]
+
         if chain == "solana":
             return await self._get_solana_whales(min_value, limit, key)
 
         return await self._get_evm_whales(chain, chain_conf, min_value, limit, key)
+
+    async def _refresh_whales(self, chain, chain_conf, min_value, limit, key):
+        try:
+            if chain == "solana":
+                result = await self._get_solana_whales(min_value, limit, key)
+            else:
+                result = await self._get_evm_whales(chain, chain_conf, min_value, limit, key)
+            stale_cache[key] = result
+        except Exception:
+            pass
 
     async def _get_evm_whales(
         self, chain: str, chain_conf: dict, min_value: float, limit: int, key: str
@@ -73,9 +89,10 @@ class WhaleService:
                 if not results:
                     results = [{"message": f"No whale transactions on {chain_conf['name']} in recent blocks"}]
                 cache[key] = results[:limit]
+                stale_cache[key] = results[:limit]
                 return results[:limit]
             except Exception as e:
-                return cache.get(key, [{"error": str(e)}])
+                return stale_cache.get(key, [{"error": str(e)}])
 
         all_results = []
         chain_id = chain_conf.get("chain_id", 1)
@@ -134,6 +151,7 @@ class WhaleService:
         if not all_results:
             all_results = [{"message": f"No whale transactions found on {chain_conf['name']}"}]
         cache[key] = all_results[:limit]
+        stale_cache[key] = all_results[:limit]
         return all_results[:limit]
 
     async def _get_solana_whales(self, min_value: float, limit: int, key: str) -> list[dict]:
