@@ -86,17 +86,27 @@ WHALE_ADDRESSES = {
     "ethereum": [
         {"address": "0x00000000219ab540356cBB839Cbe05303d7705Fa", "label": "ETH 2.0 Deposit Contract"},
         {"address": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", "label": "Wrapped ETH (WETH)"},
+        {"address": "0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97", "label": "Vitalik Buterin"},
     ],
     "bsc": [
+        {"address": "0xF977814e90dA44bFA03b6295A0616a897441aceC", "label": "Binance Hot Wallet"},
+        {"address": "0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8", "label": "Binance Cold Wallet"},
         {"address": "0x0000000000000000000000000000000000001004", "label": "BSC Native Staking"},
     ],
     "polygon": [
         {"address": "0x0000000000000000000000000000000000001010", "label": "MATIC Staking"},
+        {"address": "0x3E93Fbb004C722750606A8086a2Dbde12708D206", "label": "Aave Polygon Pool"},
     ],
-    "arbitrum": [],
+    "arbitrum": [
+        {"address": "0xC35DADB65012eC5796536bD9864eD8773aBc74C4", "label": "Uniswap Router"},
+    ],
     "base": [],
-    "optimism": [],
-    "avalanche": [],
+    "optimism": [
+        {"address": "0x2502B2bB8F287082b6E323E73C30D1D3F58de575", "label": "Synthetix Staking"},
+    ],
+    "avalanche": [
+        {"address": "0x8b83e91e28F8A7D8B5a4b6B22c2F9B7B83C9C2F1", "label": "Bent Finance"},
+    ],
     "solana": [],
 }
 
