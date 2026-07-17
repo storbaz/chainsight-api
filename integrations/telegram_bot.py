@@ -350,3 +350,8 @@ async def webhook(request: Request):
 @api.get("/")
 async def root():
     return {"status": "running", "bot": "ChainSightBot"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(api, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
