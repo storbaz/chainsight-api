@@ -1,4 +1,14 @@
 CHAINS = {
+    "bitcoin": {
+        "name": "Bitcoin",
+        "symbol": "BTC",
+        "chain_id": "bitcoin",
+        "explorer_api": "https://blockstream.info/api",
+        "explorer_url": "https://blockstream.info",
+        "rpc": "https://blockstream.info/api",
+        "native_price_id": "bitcoin",
+        "gas_api": "blockstream",
+    },
     "ethereum": {
         "name": "Ethereum",
         "symbol": "ETH",

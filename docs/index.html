@@ -173,7 +173,7 @@
 <section class="hero">
     <div class="badge">Free tier available</div>
     <h1>ChainSight API</h1>
-    <p>Unified Crypto Intelligence — Prices, DeFi Analytics, Whale Tracking, Honeypot Detection, Alpha Signals, and Embeddable Widgets.</p>
+    <p>Unified Crypto Intelligence — Prices, DeFi Analytics, Whale Tracking, Honeypot Detection, Alpha Signals, Forex & Stocks, and Embeddable Widgets.</p>
     <a href="https://rapidapi.com/storbaz/api/chainsight" class="cta">Try Free on RapidAPI</a>
 </section>
 
@@ -224,6 +224,16 @@
             <div class="icon">📰</div>
             <h3>Crypto News</h3>
             <p>Aggregated from CoinTelegraph, CryptoNews, Bitcoin Magazine. Filtered and fresh.</p>
+        </div>
+        <div class="card">
+            <div class="icon">💱</div>
+            <h3>Forex & Stocks</h3>
+            <p>13 major currency pairs, S&P 500, NASDAQ, gold, oil. ECB rates + Yahoo Finance historical data.</p>
+        </div>
+        <div class="card">
+            <div class="icon">₿</div>
+            <h3>Bitcoin Monitoring</h3>
+            <p>Real-time BTC price, mempool data, and whale transfers via Blockstream API.</p>
         </div>
     </div>
 </section>
@@ -374,6 +384,42 @@ GET /v1/market/top?limit=10
         <div class="endpoint-item">
             <div><span class="method">GET</span> <span class="path">/widget</span></div>
             <div class="desc">Interactive widget preview & code generator</div>
+        </div>
+    </div>
+
+    <div class="endpoint-group">
+        <h3>💱 Forex & Markets</h3>
+        <div class="endpoint-item">
+            <div><span class="method">GET</span> <span class="path">/v1/forex/rates</span></div>
+            <div class="desc">EUR/USD, GBP/JPY, 13 major pairs (ECB rates)</div>
+        </div>
+        <div class="endpoint-item">
+            <div><span class="method">GET</span> <span class="path">/v1/forex/pairs</span></div>
+            <div class="desc">All available pairs: forex, stocks, commodities</div>
+        </div>
+        <div class="endpoint-item">
+            <div><span class="method">GET</span> <span class="path">/v1/forex/history</span></div>
+            <div class="desc">Historical OHLC data via Yahoo Finance</div>
+        </div>
+        <div class="endpoint-item">
+            <div><span class="method">GET</span> <span class="path">/v1/forex/overview</span></div>
+            <div class="desc">Full market overview: forex + stocks + commodities</div>
+        </div>
+        <div class="endpoint-item">
+            <div><span class="method">GET</span> <span class="path">/v1/forex/search</span></div>
+            <div class="desc">Search any symbol across all asset classes</div>
+        </div>
+    </div>
+
+    <div class="endpoint-group">
+        <h3>₿ Bitcoin</h3>
+        <div class="endpoint-item">
+            <div><span class="method">GET</span> <span class="path">/v1/whales/chain/bitcoin</span></div>
+            <div class="desc">BTC whale transfers via Blockstream API</div>
+        </div>
+        <div class="endpoint-item">
+            <div><span class="method">GET</span> <span class="path">/v1/whales/chains</span></div>
+            <div class="desc">All supported chains (9 chains)</div>
         </div>
     </div>
 </section>

@@ -27,6 +27,8 @@ class WhaleService:
             asyncio.create_task(self._refresh_whales(chain, chain_conf, min_value, limit, key))
             return stale_cache[key]
 
+        if chain == "bitcoin":
+            return await self._get_bitcoin_whales(min_value, limit, key)
         if chain == "solana":
             return await self._get_solana_whales(min_value, limit, key)
 
@@ -154,6 +156,42 @@ class WhaleService:
         stale_cache[key] = all_results[:limit]
         return all_results[:limit]
 
+    async def _get_bitcoin_whales(self, min_value: float, limit: int, key: str) -> list[dict]:
+        try:
+            resp = await http_client.get(
+                "https://blockstream.info/api/mempool/recent",
+                timeout=15,
+            )
+            resp.raise_for_status()
+            txs = resp.json()
+
+            results = []
+            for tx in txs:
+                total_out = sum(o.get("value", 0) for o in tx.get("vout", []))
+                btc_value = total_out / 1e8
+                if btc_value >= min_value:
+                    results.append({
+                        "chain": "bitcoin",
+                        "hash": tx.get("txid", ""),
+                        "from_address": "multiple inputs",
+                        "to_address": tx.get("vout", [{}])[0].get("scriptpubkey_address", "") if tx.get("vout") else "",
+                        "value": round(btc_value, 6),
+                        "token_symbol": "BTC",
+                        "gas_used": tx.get("fee", 0),
+                        "gas_price": 0,
+                        "block_number": 0,
+                        "timestamp": "",
+                        "explorer_url": f"https://blockstream.info/tx/{tx.get('txid', '')}",
+                    })
+
+            if not results:
+                results = [{"message": "No whale BTC transactions in current mempool"}]
+            cache[key] = results[:limit]
+            stale_cache[key] = results[:limit]
+            return results[:limit]
+        except Exception as e:
+            return stale_cache.get(key, [{"error": str(e)}])
+
     async def _get_solana_whales(self, min_value: float, limit: int, key: str) -> list[dict]:
         try:
             resp = await http_client.post(
@@ -209,6 +247,23 @@ class WhaleService:
         chain_conf = CHAINS.get(chain)
         if not chain_conf:
             return {"error": f"Chain '{chain}' not supported"}
+
+        if chain == "bitcoin":
+            try:
+                resp = await http_client.get("https://blockstream.info/api/fee-estimates", timeout=10)
+                resp.raise_for_status()
+                fees = resp.json()
+                return {
+                    "chain": "bitcoin",
+                    "chain_name": "Bitcoin",
+                    "symbol": "BTC",
+                    "low": fees.get("144", 1),
+                    "average": fees.get("6", 5),
+                    "fast": fees.get("1", 20),
+                    "unit": "sat/vB",
+                }
+            except Exception:
+                return {"error": "Failed to get Bitcoin fee estimates"}
 
         key = f"gas_{chain}"
         if key in cache:

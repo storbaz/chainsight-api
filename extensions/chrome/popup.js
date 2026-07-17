@@ -145,7 +145,8 @@ async function loadWhales() {
     document.getElementById("whales").innerHTML = filtered.slice(0, 8).map(tx => {
       const tm = tx.timestamp ? new Date(parseInt(tx.timestamp) * 1000).toLocaleTimeString() : "";
       const chainLabel = tx.chain || selectedChain;
-      return `<div class="whale"><div class="wh-top"><span class="wh-val">${tx.value} ${tx.token_symbol || "ETH"}</span><span class="wh-chain">${chainLabel}</span><span class="wh-time">${tm}</span></div><div class="wh-addr">${tx.from_address || "?"}</div></div>`;
+      const fromAddr = tx.from_address && tx.from_address.length > 20 ? tx.from_address.slice(0, 8) + "..." + tx.from_address.slice(-6) : (tx.from_address || "?");
+      return `<div class="whale"><div class="wh-top"><span class="wh-val">${tx.value} ${tx.token_symbol || "ETH"}</span><span class="wh-chain">${chainLabel}</span><span class="wh-time">${tm}</span></div><div class="wh-addr">${fromAddr}</div></div>`;
     }).join("");
   } catch (e) {
     document.getElementById("whales").innerHTML = '<div class="loading">Error</div>';
