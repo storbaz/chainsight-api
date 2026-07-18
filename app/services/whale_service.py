@@ -1,9 +1,12 @@
 import asyncio
 import time
+import logging
 import httpx
 from cachetools import TTLCache
 from app.config import settings
 from app.services.chains import CHAINS, WHALE_ADDRESSES
+
+logger = logging.getLogger(__name__)
 
 cache = TTLCache(maxsize=200, ttl=600)
 stale_cache: dict = {}
@@ -34,7 +37,10 @@ class WhaleService:
         if chain == "solana":
             return await self._get_solana_whales(min_value, limit, key)
 
-        if chain in self.CHAINS_USING_GOLDRUSH and settings.GOLDRUSH_API_KEY:
+        has_goldrush = chain in self.CHAINS_USING_GOLDRUSH and bool(settings.GOLDRUSH_API_KEY)
+        logger.info(f"[Whales] chain={chain} goldrush={has_goldrush} key_set={bool(settings.GOLDRUSH_API_KEY)}")
+
+        if has_goldrush:
             return await self._get_goldrush_whales(chain, chain_conf, min_value, limit, key)
 
         return await self._get_evm_whales(chain, chain_conf, min_value, limit, key)
@@ -211,16 +217,20 @@ class WhaleService:
 
         async def _fetch_goldrush_addr(addr_info: dict) -> list[dict]:
             try:
+                url = f"https://api.covalenthq.com/v1/{goldrush_id}/address/{addr_info['address']}/transfers_v2/"
+                logger.info(f"[GoldRush] Fetching {chain} addr={addr_info['address'][:12]}... chain_id={goldrush_id}")
                 resp = await http_client.get(
-                    f"https://api.covalenthq.com/v1/{goldrush_id}/address/{addr_info['address']}/transfers_v2/",
+                    url,
                     params={"page-size": 50, "quote-currency": "USD"},
                     headers={"Authorization": f"Bearer {settings.GOLDRUSH_API_KEY}"},
                     timeout=20,
                 )
                 if resp.status_code != 200:
+                    logger.warning(f"[GoldRush] {chain} status={resp.status_code} body={resp.text[:200]}")
                     return []
                 data = resp.json()
                 items = data.get("data", {}).get("items", [])
+                logger.info(f"[GoldRush] {chain} addr={addr_info['address'][:12]}... got {len(items)} items")
                 results = []
                 for tx in items:
                     transfers = tx.get("transfers", [])
@@ -252,7 +262,8 @@ class WhaleService:
                             "direction": "outgoing" if is_outgoing else "incoming",
                         })
                 return results
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[GoldRush] {chain} exception: {e}")
                 return []
 
         addr_results = await asyncio.gather(
@@ -260,6 +271,16 @@ class WhaleService:
         )
         for r in addr_results:
             all_results.extend(r)
+
+        logger.info(f"[GoldRush] {chain} total results: {len(all_results)}")
+
+        if not all_results:
+            logger.info(f"[GoldRush] {chain} empty, falling back to RPC")
+            all_results = await self._get_rpc_whales(chain, chain_conf, min_value, key)
+            if all_results and isinstance(all_results[0], dict) and "message" not in all_results[0]:
+                cache[key] = all_results[:limit]
+                stale_cache[key] = all_results[:limit]
+                return all_results[:limit]
 
         all_results.sort(key=lambda x: x.get("value", 0), reverse=True)
         if not all_results:

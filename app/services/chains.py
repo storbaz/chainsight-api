@@ -54,7 +54,7 @@ CHAINS = {
         "name": "Arbitrum",
         "symbol": "ETH",
         "chain_id": 42161,
-        "goldrush_chain_id": "arbitrum-one",
+        "goldrush_chain_id": "arbitrum-mainnet",
         "explorer_api": "https://api.etherscan.io/v2/api",
         "explorer_url": "https://arbiscan.io",
         "rpc": "https://arb1.arbitrum.io/rpc",
