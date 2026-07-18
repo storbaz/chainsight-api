@@ -446,6 +446,18 @@ async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def non_command_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "I only respond to commands.\n\nType /start to see all available commands."
+    )
+
+
+async def non_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "I can only process text commands.\n\nType /start to see all available commands."
+    )
+
+
 # ---------- Background alert checker ----------
 
 async def check_alerts():
@@ -520,12 +532,22 @@ application.add_handler(CommandHandler("alert", alert))
 application.add_handler(CommandHandler("alerts", list_alerts))
 application.add_handler(CommandHandler("cancel", cancel_alert))
 application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, non_command_text))
+application.add_handler(MessageHandler(~filters.TEXT & ~filters.COMMAND, non_text_message))
 
 
 @api.on_event("startup")
 async def startup():
     await application.initialize()
     await application.bot.set_webhook(url="https://crypto-insight-bot.onrender.com/webhook")
+    from telegram import MenuButtonCommands
+    try:
+        await application.bot.set_chat_menu_button(
+            chat_id=None,
+            menu_button=MenuButtonCommands(type="commands"),
+        )
+    except Exception:
+        pass
     asyncio.create_task(check_alerts())
     print("Bot started with webhook")
 

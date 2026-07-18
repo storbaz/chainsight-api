@@ -48,56 +48,9 @@ class WhaleService:
         self, chain: str, chain_conf: dict, min_value: float, limit: int, key: str
     ) -> list[dict]:
         addresses = WHALE_ADDRESSES.get(chain, [])
-        if not addresses:
-            chain_id = chain_conf.get("chain_id", 1)
-            try:
-                resp = await http_client.get(
-                    settings.ETHERSCAN_BASE_URL,
-                    params={
-                        "chainid": chain_id,
-                        "module": "account",
-                        "action": "txlist",
-                        "startblock": 0,
-                        "endblock": 99999999,
-                        "page": 1,
-                        "offset": 50,
-                        "sort": "desc",
-                        "apikey": settings.ETHERSCAN_API_KEY,
-                    },
-                )
-                resp.raise_for_status()
-                data = resp.json().get("result", [])
-                if isinstance(data, str):
-                    return cache.get(key, [{"error": data}])
-
-                symbol = chain_conf["symbol"]
-                results = []
-                for tx in data:
-                    value_native = int(tx.get("value", "0")) / 1e18
-                    if value_native >= min_value:
-                        results.append({
-                            "chain": chain,
-                            "hash": tx.get("hash"),
-                            "from_address": tx.get("from"),
-                            "to_address": tx.get("to"),
-                            "value": round(value_native, 4),
-                            "token_symbol": symbol,
-                            "gas_used": int(tx.get("gasUsed", 0)),
-                            "gas_price": int(tx.get("gasPrice", 0)) / 1e9,
-                            "block_number": int(tx.get("blockNumber", 0)),
-                            "timestamp": tx.get("timeStamp", ""),
-                            "explorer_url": f"{chain_conf['explorer_url']}/tx/{tx.get('hash', '')}",
-                        })
-                if not results:
-                    results = [{"message": f"No whale transactions on {chain_conf['name']} in recent blocks"}]
-                cache[key] = results[:limit]
-                stale_cache[key] = results[:limit]
-                return results[:limit]
-            except Exception as e:
-                return stale_cache.get(key, [{"error": str(e)}])
-
         all_results = []
         chain_id = chain_conf.get("chain_id", 1)
+        symbol = chain_conf["symbol"]
 
         async def _fetch_addr_txs(addr_info: dict) -> list[dict]:
             try:
@@ -117,12 +70,12 @@ class WhaleService:
                     },
                 )
                 resp.raise_for_status()
-                data = resp.json().get("result", [])
-                if isinstance(data, str):
+                data = resp.json()
+                result = data.get("result", [])
+                if isinstance(result, str):
                     return []
-                symbol = chain_conf["symbol"]
                 results = []
-                for tx in data:
+                for tx in result:
                     value_native = int(tx.get("value", "0")) / 1e18
                     if value_native >= min_value:
                         results.append({
@@ -143,11 +96,17 @@ class WhaleService:
             except Exception:
                 return []
 
-        addr_results = await asyncio.gather(
-            *[_fetch_addr_txs(a) for a in addresses[:3]]
-        )
-        for r in addr_results:
-            all_results.extend(r)
+        if addresses:
+            addr_results = await asyncio.gather(
+                *[_fetch_addr_txs(a) for a in addresses[:3]]
+            )
+            for r in addr_results:
+                all_results.extend(r)
+
+        etherscan_failed = not all_results and "Free API access is not supported" in str(all_results)
+
+        if not all_results:
+            all_results = await self._get_rpc_whales(chain, chain_conf, min_value, key)
 
         all_results.sort(key=lambda x: x.get("value", 0), reverse=True)
         if not all_results:
@@ -155,6 +114,82 @@ class WhaleService:
         cache[key] = all_results[:limit]
         stale_cache[key] = all_results[:limit]
         return all_results[:limit]
+
+    async def _get_rpc_whales(
+        self, chain: str, chain_conf: dict, min_value: float, key: str
+    ) -> list[dict]:
+        rpc = chain_conf.get("rpc", "")
+        if not rpc:
+            return []
+        whale_addrs = {a["address"].lower() for a in WHALE_ADDRESSES.get(chain, [])}
+        if not whale_addrs:
+            return []
+        symbol = chain_conf["symbol"]
+        try:
+            resp = await http_client.post(
+                rpc,
+                json={"jsonrpc": "2.0", "method": "eth_blockNumber", "params": [], "id": 1},
+                timeout=10,
+            )
+            resp.raise_for_status()
+            latest_hex = resp.json().get("result", "0x0")
+            latest = int(latest_hex, 16)
+        except Exception:
+            return []
+        results = []
+        blocks_to_scan = 15
+        for i in range(blocks_to_scan):
+            block_num = latest - i
+            block_hex = hex(block_num)
+            try:
+                resp = await http_client.post(
+                    rpc,
+                    json={
+                        "jsonrpc": "2.0",
+                        "method": "eth_getBlockByNumber",
+                        "params": [block_hex, True],
+                        "id": 1,
+                    },
+                    timeout=15,
+                )
+                resp.raise_for_status()
+                block = resp.json().get("result", {})
+                if not block:
+                    continue
+                ts = int(block.get("timestamp", "0x0"), 16)
+                for tx in block.get("transactions", []):
+                    if not isinstance(tx, dict):
+                        continue
+                    tx_from = (tx.get("from") or "").lower()
+                    tx_to = (tx.get("to") or "").lower()
+                    if tx_from not in whale_addrs and tx_to not in whale_addrs:
+                        continue
+                    value_hex = tx.get("value", "0x0")
+                    value_native = int(value_hex, 16) / 1e18
+                    if value_native < min_value:
+                        continue
+                    label = ""
+                    for a in WHALE_ADDRESSES.get(chain, []):
+                        if a["address"].lower() in (tx_from, tx_to):
+                            label = a.get("label", "")
+                            break
+                    results.append({
+                        "chain": chain,
+                        "label": label,
+                        "hash": tx.get("hash", ""),
+                        "from_address": tx.get("from", ""),
+                        "to_address": tx.get("to", ""),
+                        "value": round(value_native, 4),
+                        "token_symbol": symbol,
+                        "gas_used": int(tx.get("gas", "0x0"), 16) if isinstance(tx.get("gas"), str) else 0,
+                        "gas_price": int(tx.get("gasPrice", "0x0"), 16) / 1e9 if isinstance(tx.get("gasPrice"), str) else 0,
+                        "block_number": block_num,
+                        "timestamp": str(ts),
+                        "explorer_url": f"{chain_conf['explorer_url']}/tx/{tx.get('hash', '')}",
+                    })
+            except Exception:
+                continue
+        return results
 
     async def _get_bitcoin_whales(self, min_value: float, limit: int, key: str) -> list[dict]:
         try:
