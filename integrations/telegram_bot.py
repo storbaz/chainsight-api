@@ -7,7 +7,7 @@ import httpx
 from difflib import get_close_matches
 from fastapi import FastAPI, Request
 from telegram import Update, Bot
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 CHAINSIGHT_BASE = os.environ.get("CHAINSIGHT_BASE_URL", "https://chainsight-api.onrender.com")
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
@@ -18,6 +18,7 @@ COMMON_COINS = [
     "avalanche-2", "polkadot", "chainlink", "tron", "litecoin",
     "uniswap", "stellar", "cosmos", "monero", "filecoin",
 ]
+VALID_CHAINS = ["ethereum", "bitcoin", "bsc", "solana", "polygon", "arbitrum", "base", "optimism", "avalanche"]
 
 application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 api = FastAPI()
@@ -68,31 +69,31 @@ def _remove_alert(user_id: int, alert_id: int) -> bool:
 # ---------- Helpers ----------
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🔍 *ChainSight Bot*\n\n"
-        "*Market:*\n"
-        "/price <coin> — Get coin price\n"
+    text = (
+        "🔍 <b>ChainSight Bot</b>\n\n"
+        "<b>Market:</b>\n"
+        "/price coin — Get coin price\n"
         "/top — Top 10 coins\n"
         "/feargreed — Fear & Greed Index\n"
-        "/search <query> — Search coins\n\n"
-        "*DeFi & Security:*\n"
+        "/search query — Search coins\n\n"
+        "<b>DeFi & Security:</b>\n"
         "/defi — Top DeFi protocols\n"
         "/gas — Gas prices (all chains)\n"
-        "/honeypot <address> — Check token safety\n\n"
-        "*Forex & Stocks:*\n"
-        "/forex <pair> — Forex rate (EUR/USD)\n"
-        "/stocks <symbol> — Stock price (AAPL)\n"
+        "/honeypot address — Check token safety\n\n"
+        "<b>Forex & Stocks:</b>\n"
+        "/forex pair — Forex rate (EUR/USD)\n"
+        "/stocks symbol — Stock price (AAPL)\n"
         "/overview — Full market overview\n\n"
-        "*Whales:*\n"
-        "/whales <chain> — Whale txs (eth/btc/bsc/sol)\n\n"
-        "*News:*\n"
+        "<b>Whales:</b>\n"
+        "/whales chain — Whale txs (eth/btc/bsc/sol)\n\n"
+        "<b>News:</b>\n"
         "/news — Latest crypto news\n\n"
-        "*Price Alerts:*\n"
-        "/alert <coin> <above|below> <price> — Set alert\n"
+        "<b>Price Alerts:</b>\n"
+        "/alert coin above|below price — Set alert\n"
         "/alerts — List your alerts\n"
-        "/cancel <id> — Remove alert",
-        parse_mode="Markdown",
+        "/cancel id — Remove alert"
     )
+    await update.message.reply_text(text, parse_mode="HTML")
 
 
 async def _get(path: str, params: dict = None) -> dict | None:
@@ -117,86 +118,86 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not data:
         suggestions = get_close_matches(coin_id, COMMON_COINS, n=3, cutoff=0.4)
         sug = f"\n\nDid you mean: {', '.join(suggestions)}?" if suggestions else f"\n\nTry: /search {coin_id}"
-        await update.message.reply_text(f"❌ Coin '{coin_id}' not found.{sug}")
+        await update.message.reply_text(f"Coin '{coin_id}' not found.{sug}")
         return
     if "error" in data:
-        await update.message.reply_text("⏳ Rate limited. Try again in a few seconds.")
+        await update.message.reply_text("Rate limited. Try again in a few seconds.")
         return
+    change_7d = data.get("price_change_percentage_7d", 0) or 0
     await update.message.reply_text(
-        f"💰 *{data['name']}* ({data['symbol'].upper()})\n\n"
+        f"💰 {data['name']} ({data['symbol'].upper()})\n\n"
         f"Price: ${data['current_price']:,.2f}\n"
         f"24h: {data['price_change_percentage_24h']:.2f}%\n"
-        f"7d: {data.get('price_change_percentage_7d', 0) or 0:.2f}%\n"
+        f"7d: {change_7d:.2f}%\n"
         f"Market Cap: ${data['market_cap']:,.0f}\n"
-        f"Rank: #{data['market_cap_rank']}",
-        parse_mode="Markdown",
+        f"Rank: #{data['market_cap_rank']}"
     )
 
 
 async def top(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = await _get("/v1/market/top", {"limit": 10})
     if not data:
-        await update.message.reply_text("⏳ Data loading. Try again in 30s.")
+        await update.message.reply_text("Data loading. Try again in 30s.")
         return
-    lines = ["📊 *Top 10 Cryptocurrencies*\n"]
+    lines = ["📊 <b>Top 10 Cryptocurrencies</b>\n"]
     for i, coin in enumerate(data, 1):
         change = coin.get("price_change_percentage_24h", 0) or 0
         emoji = "🟢" if change >= 0 else "🔴"
-        lines.append(f"{i}. *{coin['name']}* — ${coin['current_price']:,.2f} {emoji} {change:.1f}%")
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        lines.append(f"{i}. <b>{coin['name']}</b> — ${coin['current_price']:,.2f} {emoji} {change:.1f}%")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
 async def feargreed(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = await _get("/v1/market/fear-greed")
     if not data:
-        await update.message.reply_text("❌ Error. Try again.")
+        await update.message.reply_text("Error. Try again.")
         return
     value = data["value"]
     cls = data["classification"]
     emoji = "😱" if value <= 25 else "😨" if value <= 45 else "😐" if value <= 55 else "😊" if value <= 75 else "🤑"
     await update.message.reply_text(
-        f"{emoji} *Fear & Greed Index*\n\nValue: *{value}*/100\nClassification: *{cls}*",
-        parse_mode="Markdown",
+        f"{emoji} <b>Fear &amp; Greed Index</b>\n\nValue: <b>{value}</b>/100\nClassification: <b>{cls}</b>",
+        parse_mode="HTML",
     )
 
 
 async def defi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = await _get("/v1/defi/protocols", {"limit": 5})
     if not data:
-        await update.message.reply_text("❌ Error. Try again.")
+        await update.message.reply_text("Error. Try again.")
         return
-    lines = ["💰 *Top DeFi Protocols*\n"]
+    lines = ["💰 <b>Top DeFi Protocols</b>\n"]
     for i, p in enumerate(data, 1):
         tvl = p.get("tvl", 0) or 0
-        lines.append(f"{i}. *{p['name']}* — ${tvl/1e9:.2f}B TVL")
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        lines.append(f"{i}. <b>{p['name']}</b> — ${tvl/1e9:.2f}B TVL")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
 async def gas(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = await _get("/v1/whales/gas")
     if not data:
-        await update.message.reply_text("❌ Error. Try again.")
+        await update.message.reply_text("Error. Try again.")
         return
     await update.message.reply_text(
-        f"⛽ *Ethereum Gas*\n\n"
+        f"⛽ <b>Ethereum Gas</b>\n\n"
         f"Low: {data['low']:.1f} Gwei\n"
         f"Average: {data['average']:.1f} Gwei\n"
         f"Fast: {data['fast']:.1f} Gwei",
-        parse_mode="Markdown",
+        parse_mode="HTML",
     )
 
 
 async def gas_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chains_data = await _get("/v1/whales/chains")
     if not chains_data:
-        await update.message.reply_text("❌ Error. Try again.")
+        await update.message.reply_text("Error. Try again.")
         return
-    lines = ["⛽ *Gas Prices — All Chains*\n"]
+    lines = ["⛽ <b>Gas Prices — All Chains</b>\n"]
     for chain in chains_data.get("chains", []):
         g = await _get("/v1/whales/gas", {"chain": chain["id"]})
         if g and "low" in g:
-            lines.append(f"*{chain['name']}*: {g['low']:.1f} / {g['average']:.1f} / {g['fast']:.1f} {g.get('unit', 'gwei')}")
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+            lines.append(f"<b>{chain['name']}</b>: {g['low']:.1f} / {g['average']:.1f} / {g['fast']:.1f} {g.get('unit', 'gwei')}")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
 async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -208,12 +209,12 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not data:
         await update.message.reply_text(f"No results for '{query}'.")
         return
-    lines = [f"🔍 *Results for '{query}'*\n"]
+    lines = [f"🔍 <b>Results for '{query}'</b>\n"]
     for c in data[:5]:
         rank = c.get("market_cap_rank", "?")
-        lines.append(f"• *{c['name']}* ({c['symbol'].upper()}) — Rank #{rank}")
-    lines.append("\n💡 Use /price <id> for details")
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        lines.append(f"• <b>{c['name']}</b> ({c['symbol'].upper()}) — Rank #{rank}")
+    lines.append("\n💡 Use /price id for details")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
 async def honeypot(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -221,9 +222,12 @@ async def honeypot(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Usage: /honeypot 0x...")
         return
     address = context.args[0].strip()
+    if not address.startswith("0x") or len(address) < 10:
+        await update.message.reply_text("Invalid address. Must start with 0x and be at least 10 chars.")
+        return
     data = await _get(f"/v1/security/honeypot/{address}")
     if not data:
-        await update.message.reply_text("❌ Error. Try again.")
+        await update.message.reply_text("Error. Try again.")
         return
     if "error" in data:
         await update.message.reply_text(f"❌ {data['error']}")
@@ -233,10 +237,10 @@ async def honeypot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     emoji = "🚨" if is_hp else "✅"
     risk_emoji = {"low": "🟢", "medium": "🟡", "high": "🔴"}.get(risk, "⚪")
     lines = [
-        f"{emoji} *Honeypot Check*\n",
-        f"Address: `{address[:10]}...{address[-6:]}`",
-        f"Honeypot: *{'YES' if is_hp else 'NO'}*",
-        f"Risk: {risk_emoji} *{risk.upper()}*",
+        f"{emoji} <b>Honeypot Check</b>\n",
+        f"Address: <code>{address[:10]}...{address[-6:]}</code>",
+        f"Honeypot: <b>{'YES' if is_hp else 'NO'}</b>",
+        f"Risk: {risk_emoji} <b>{risk.upper()}</b>",
     ]
     if data.get("buy_tax") is not None:
         lines.append(f"Buy Tax: {data['buy_tax']}%")
@@ -246,7 +250,7 @@ async def honeypot(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines.append("⚠️ Owner can sell")
     if data.get("hidden_owner"):
         lines.append("⚠️ Hidden owner")
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
 async def forex(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -255,15 +259,15 @@ async def forex(update: Update, context: ContextTypes.DEFAULT_TYPE):
         symbol = " ".join(context.args).upper()
     data = await _get("/v1/forex/rates", {"base": symbol.split("/")[0] if "/" in symbol else "EUR"})
     if not data:
-        await update.message.reply_text("❌ Error. Try again.")
+        await update.message.reply_text("Error. Try again.")
         return
     rates = data.get("rates", {})
     date = data.get("date", "")
-    lines = [f"💱 *Forex Rates* ({date})\n"]
+    lines = [f"💱 <b>Forex Rates</b> ({date})\n"]
     for cur, rate in rates.items():
-        lines.append(f"*{data['base']}/{cur}*: {rate}")
+        lines.append(f"<b>{data['base']}/{cur}</b>: {rate}")
     lines.append(f"\n💡 Try: /forex EUR/GBP, /forex USD/JPY")
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
 async def stocks(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -274,9 +278,12 @@ async def stocks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     symbol = context.args[0].upper().strip()
+    if not symbol.isalpha():
+        await update.message.reply_text("Invalid symbol. Use letters only (e.g. AAPL).")
+        return
     data = await _get("/v1/forex/history", {"symbol": symbol, "range": "5d", "interval": "1d"})
     if not data or "error" in data:
-        await update.message.reply_text(f"❌ Could not get data for {symbol}")
+        await update.message.reply_text(f"Could not get data for {symbol}")
         return
     summary = data.get("summary", {})
     current = summary.get("current", 0)
@@ -285,83 +292,90 @@ async def stocks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     change = summary.get("change_pct", 0)
     emoji = "🟢" if change >= 0 else "🔴"
     await update.message.reply_text(
-        f"📈 *{symbol}*\n\n"
+        f"📈 <b>{symbol}</b>\n\n"
         f"Price: ${current:,.2f}\n"
         f"5d Change: {emoji} {change:+.2f}%\n"
         f"5d High: ${high:,.2f}\n"
         f"5d Low: ${low:,.2f}",
-        parse_mode="Markdown",
+        parse_mode="HTML",
     )
 
 
 async def overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = await _get("/v1/forex/overview")
     if not data:
-        await update.message.reply_text("❌ Error. Try again.")
+        await update.message.reply_text("Error. Try again.")
         return
     forex_pairs = data.get("forex", [])[:5]
     stocks_list = data.get("stocks", [])[:5]
     commodities = data.get("commodities", [])[:3]
-    lines = ["📊 *Market Overview*\n"]
+    lines = ["📊 <b>Market Overview</b>\n"]
     if forex_pairs:
-        lines.append("*Forex:*")
+        lines.append("<b>Forex:</b>")
         for p in forex_pairs:
             ch = p.get("change_pct", 0) or 0
             emoji = "🟢" if ch >= 0 else "🔴"
             lines.append(f"  {p['symbol']}: {p.get('rate', 0):.4f} {emoji} {ch:+.2f}%")
     if stocks_list:
-        lines.append("\n*Stocks:*")
+        lines.append("\n<b>Stocks:</b>")
         for s in stocks_list:
             ch = s.get("change_pct", 0) or 0
             emoji = "🟢" if ch >= 0 else "🔴"
             lines.append(f"  {s['symbol']}: ${s.get('price', 0):,.2f} {emoji} {ch:+.2f}%")
     if commodities:
-        lines.append("\n*Commodities:*")
+        lines.append("\n<b>Commodities:</b>")
         for c in commodities:
             ch = c.get("change_pct", 0) or 0
             emoji = "🟢" if ch >= 0 else "🔴"
             lines.append(f"  {c['symbol']}: ${c.get('price', 0):,.2f} {emoji} {ch:+.2f}%")
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
 async def whales(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chain = context.args[0].lower() if context.args else "ethereum"
+    if chain not in VALID_CHAINS:
+        await update.message.reply_text(
+            f"Invalid chain: '{chain}'\n\n"
+            f"Valid chains: {', '.join(VALID_CHAINS)}"
+        )
+        return
     data = await _get(f"/v1/whales/chain/{chain}", {"min_value": 100, "limit": 5})
     if not data:
-        await update.message.reply_text("❌ Error. Try again.")
+        await update.message.reply_text("Error. Try again.")
         return
     valid = [t for t in data if "hash" in t]
     if not valid:
         msg = data[0].get("message", "No whale txs found") if data else "No data"
-        await update.message.reply_text(f"🐋 *{chain.upper()} Whales*\n\n{msg}", parse_mode="Markdown")
+        await update.message.reply_text(f"🐋 <b>{chain.upper()} Whales</b>\n\n{msg}", parse_mode="HTML")
         return
-    lines = [f"🐋 *{chain.upper()} Whale Transactions*\n"]
+    lines = [f"🐋 <b>{chain.upper()} Whale Transactions</b>\n"]
     for tx in valid[:5]:
         val = tx.get("value", 0)
         sym = tx.get("token_symbol", "?")
         addr = tx.get("from_address", "?")
         short_addr = f"{addr[:8]}...{addr[-4:]}" if len(addr) > 12 else addr
-        lines.append(f"*{val} {sym}* — {short_addr}")
-    lines.append(f"\n💡 Chains: eth, btc, bsc, sol, polygon, arbitrum, base, optimism, avalanche")
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        lines.append(f"<b>{val} {sym}</b> — {short_addr}")
+    lines.append(f"\n💡 Chains: {', '.join(VALID_CHAINS)}")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
 async def news(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = await _get("/v1/market/news", {"limit": 5})
     if not data:
-        await update.message.reply_text("❌ Error. Try again.")
+        await update.message.reply_text("Error. Try again.")
         return
     articles = data.get("articles", [])
     if not articles:
-        await update.message.reply_text("📰 No news available right now.")
+        await update.message.reply_text("No news available right now.")
         return
-    lines = ["📰 *Latest Crypto News*\n"]
+    lines = ["📰 <b>Latest Crypto News</b>\n"]
     for a in articles[:5]:
         title = a.get("title", "")[:80]
         source = a.get("source", "")
-        lines.append(f"• [{title}]({a.get('url', '#')})")
-        lines.append(f"  _{source}_")
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown", disable_web_page_preview=True)
+        url = a.get("url", "#")
+        lines.append(f'• <a href="{url}">{title}</a>')
+        lines.append(f"  <i>{source}</i>")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML", disable_web_page_preview=True)
 
 
 # ---------- Price Alerts ----------
@@ -381,18 +395,17 @@ async def alert(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         target_price = float(context.args[2].replace(",", ""))
     except ValueError:
-        await update.message.reply_text("❌ Invalid price. Example: /alert BTC above 70000")
+        await update.message.reply_text("Invalid price. Example: /alert BTC above 70000")
         return
     if direction not in ("above", "below"):
-        await update.message.reply_text("❌ Direction must be 'above' or 'below'.")
+        await update.message.reply_text("Direction must be 'above' or 'below'.")
         return
 
     alert_id = _add_alert(update.effective_user.id, coin, direction, target_price)
     symbol = coin.upper()
     await update.message.reply_text(
-        f"✅ *Alert #{alert_id} created!*\n\n"
-        f"I'll notify you when *{symbol}* goes *{direction}* ${target_price:,.2f}",
-        parse_mode="Markdown",
+        f"✅ Alert #{alert_id} created!\n\n"
+        f"I'll notify you when {symbol} goes {direction} ${target_price:,.2f}"
     )
 
 
@@ -400,29 +413,37 @@ async def list_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     alerts = _load_alerts().get(str(update.effective_user.id), [])
     active = [a for a in alerts if not a.get("triggered")]
     if not active:
-        await update.message.reply_text("No active alerts.\n\nUse /alert <coin> <above|below> <price> to set one.")
+        await update.message.reply_text("No active alerts.\n\nUse /alert coin above|below price to set one.")
         return
-    lines = ["🔔 *Your Active Alerts*\n"]
+    lines = ["🔔 <b>Your Active Alerts</b>\n"]
     for a in active:
-        lines.append(f"#{a['id']} — *{a['coin'].upper()}* {a['direction']} ${a['target']:,.2f}")
-    lines.append(f"\nTotal: {len(active)} alerts\nCancel: /cancel <id>")
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+        lines.append(f"#{a['id']} — <b>{a['coin'].upper()}</b> {a['direction']} ${a['target']:,.2f}")
+    lines.append(f"\nTotal: {len(active)} alerts\nCancel: /cancel id")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
 async def cancel_alert(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("Usage: /cancel <alert_id>\nUse /alerts to see your alerts.")
+        await update.message.reply_text("Usage: /cancel alert_id\nUse /alerts to see your alerts.")
         return
     try:
         alert_id = int(context.args[0])
     except ValueError:
-        await update.message.reply_text("❌ Invalid alert ID.")
+        await update.message.reply_text("Invalid alert ID. Use a number.")
         return
     removed = _remove_alert(update.effective_user.id, alert_id)
     if removed:
-        await update.message.reply_text(f"✅ Alert #{alert_id} removed.")
+        await update.message.reply_text(f"Alert #{alert_id} removed.")
     else:
-        await update.message.reply_text(f"❌ Alert #{alert_id} not found.")
+        await update.message.reply_text(f"Alert #{alert_id} not found.")
+
+
+async def unknown_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text or ""
+    cmd = text.split()[0] if text else ""
+    await update.message.reply_text(
+        f"Unknown command: {cmd}\n\nType /start to see all available commands."
+    )
 
 
 # ---------- Background alert checker ----------
@@ -463,12 +484,12 @@ async def check_alerts():
                             await bot.send_message(
                                 chat_id=int(uid),
                                 text=(
-                                    f"🔔 *Price Alert!*\n\n"
-                                    f"*{coin.upper()}* is now *${price_now:,.2f}*\n"
+                                    f"🔔 <b>Price Alert!</b>\n\n"
+                                    f"<b>{coin.upper()}</b> is now <b>${price_now:,.2f}</b>\n"
                                     f"Your target: {a['direction']} ${target:,.2f}\n\n"
                                     f"Use /alerts to manage your alerts"
                                 ),
-                                parse_mode="Markdown",
+                                parse_mode="HTML",
                             )
                         except Exception:
                             pass
@@ -498,6 +519,7 @@ application.add_handler(CommandHandler("news", news))
 application.add_handler(CommandHandler("alert", alert))
 application.add_handler(CommandHandler("alerts", list_alerts))
 application.add_handler(CommandHandler("cancel", cancel_alert))
+application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
 
 
 @api.on_event("startup")
