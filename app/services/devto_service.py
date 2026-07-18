@@ -398,6 +398,16 @@ async def publish_next() -> dict:
     if not DEVTO_API_KEY:
         return {"error": "DEVTO_API_KEY not set"}
 
+    last_date = get_last_publish_date()
+    if last_date:
+        from datetime import timedelta
+        import random
+        last = datetime.strptime(last_date, "%Y-%m-%d")
+        days_since = (datetime.utcnow() - last).days
+        min_days = random.randint(1, 3)
+        if days_since < min_days:
+            return {"status": "skipped", "reason": f"Published {days_since}d ago, min {min_days}d"}
+
     idx = get_article_index()
     topic_data = ARTICLES[idx % len(ARTICLES)]
 
