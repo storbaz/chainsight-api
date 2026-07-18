@@ -74,9 +74,19 @@ ARTICLES = [
 ]
 
 
-GRAPHQL_PUBLISH = """
-mutation PublishPost($input: PublishPostInput!) {
-  publishPost(input: $input) {
+GRAPHQL_CREATE_DRAFT = """
+mutation CreateDraft($input: CreateDraftInput!) {
+  createDraft(input: $input) {
+    draft {
+      id
+    }
+  }
+}
+"""
+
+GRAPHQL_PUBLISH_DRAFT = """
+mutation PublishDraft($input: PublishDraftInput!) {
+  publishDraft(input: $input) {
     post {
       url
       id
@@ -389,36 +399,61 @@ async def publish_next() -> dict:
     top_coins, fear_greed = await get_market_data()
     body_md = build_article_content(topic_data, top_coins, fear_greed)
 
-    tag_objects = [{"name": t} for t in topic_data["tags"]]
+    tag_objects = [{"name": t, "slug": t.lower().replace(" ", "-")} for t in topic_data["tags"]]
 
-    payload = {
-        "query": GRAPHQL_PUBLISH,
-        "variables": {
-            "input": {
-                "title": topic_data["title"],
-                "contentMarkdown": body_md,
-                "tags": tag_objects,
-                "publishTo": HASHNODE_PUBLICATION_ID,
-            }
-        },
+    headers = {
+        "Authorization": HASHNODE_API_TOKEN,
+        "Content-Type": "application/json",
     }
 
     async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(
+        # Step 1: Create draft
+        draft_resp = await client.post(
             HASHNODE_API,
-            headers={
-                "Authorization": HASHNODE_API_TOKEN,
-                "Content-Type": "application/json",
+            headers=headers,
+            json={
+                "query": GRAPHQL_CREATE_DRAFT,
+                "variables": {
+                    "input": {
+                        "title": topic_data["title"],
+                        "contentMarkdown": body_md,
+                        "tags": tag_objects,
+                        "publicationId": HASHNODE_PUBLICATION_ID,
+                    }
+                },
             },
-            json=payload,
+        )
+
+        draft_data = draft_resp.json()
+        if draft_resp.status_code != 200 or draft_data.get("errors"):
+            errors = draft_data.get("errors", [])
+            error_msg = errors[0].get("message", draft_resp.text[:200]) if errors else draft_resp.text[:200]
+            return {"error": draft_resp.status_code, "detail": f"Draft creation failed: {error_msg}"}
+
+        draft_id = draft_data.get("data", {}).get("createDraft", {}).get("draft", {}).get("id")
+        if not draft_id:
+            return {"error": "No draft ID returned"}
+
+        # Step 2: Publish draft
+        publish_resp = await client.post(
+            HASHNODE_API,
+            headers=headers,
+            json={
+                "query": GRAPHQL_PUBLISH_DRAFT,
+                "variables": {
+                    "input": {
+                        "draftId": draft_id,
+                    }
+                },
+            },
         )
 
     save_article_index(idx + 1)
     save_last_publish_date(datetime.utcnow().strftime("%Y-%m-%d"))
 
-    resp_data = resp.json()
-    if resp.status_code == 200 and not resp_data.get("errors"):
-        post = resp_data.get("data", {}).get("publishPost", {}).get("post", {})
+    publish_data = publish_resp.json()
+    if publish_resp.status_code == 200 and not publish_data.get("errors"):
+        post = publish_data.get("data", {}).get("publishDraft", {}).get("post", {})
         return {
             "status": "published",
             "title": topic_data["title"],
@@ -427,6 +462,6 @@ async def publish_next() -> dict:
             "slug": post.get("slug", ""),
         }
 
-    errors = resp_data.get("errors", [])
-    error_msg = errors[0].get("message", resp.text[:200]) if errors else resp.text[:200]
-    return {"error": resp.status_code, "detail": error_msg}
+    errors = publish_data.get("errors", [])
+    error_msg = errors[0].get("message", publish_resp.text[:200]) if errors else publish_resp.text[:200]
+    return {"error": publish_resp.status_code, "detail": error_msg}
