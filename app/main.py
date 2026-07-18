@@ -3,7 +3,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, Response
 from app.config import settings
-from app.api.v1 import market, defi, whales, health, alerts, news, admin, security, signals, forex
+from app.api.v1 import market, defi, whales, health, alerts, news, admin, security, signals, forex, admin_publish
 
 
 @asynccontextmanager
@@ -67,6 +67,7 @@ def create_app() -> FastAPI:
     app.include_router(security.router, prefix="/v1")
     app.include_router(signals.router, prefix="/v1")
     app.include_router(forex.router, prefix="/v1")
+    app.include_router(admin_publish.router, prefix="/v1")
 
     @app.api_route("/ping", methods=["GET", "HEAD"])
     async def ping():
