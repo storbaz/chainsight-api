@@ -18,7 +18,7 @@ COMMON_COINS = [
     "avalanche-2", "polkadot", "chainlink", "tron", "litecoin",
     "uniswap", "stellar", "cosmos", "monero", "filecoin",
 ]
-VALID_CHAINS = ["ethereum", "bitcoin", "bsc", "solana", "polygon", "arbitrum", "base", "optimism", "avalanche"]
+VALID_CHAINS = ["ethereum", "bitcoin", "polygon", "solana", "avalanche", "optimism", "base"]
 
 application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 api = FastAPI()
@@ -85,7 +85,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/stocks symbol — Stock price (AAPL)\n"
         "/overview — Full market overview\n\n"
         "<b>Whales:</b>\n"
-        "/whales chain — Whale txs (eth/btc/bsc/sol)\n\n"
+        "/whales chain — Whale txs (eth/btc/poly/sol)\n\n"
         "<b>News:</b>\n"
         "/news — Latest crypto news\n\n"
         "<b>Price Alerts:</b>\n"

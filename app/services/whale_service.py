@@ -12,12 +12,20 @@ http_client = httpx.AsyncClient(timeout=15)
 
 class WhaleService:
 
+    ETHERSCAN_PAID_CHAINS = {"bsc", "arbitrum"}
+
     async def get_whale_transactions(
         self, chain: str = "ethereum", min_value: float = 100, limit: int = 20
     ) -> list[dict]:
         chain_conf = CHAINS.get(chain)
         if not chain_conf:
             return [{"error": f"Chain '{chain}' not supported. Use: {list(CHAINS.keys())}"}]
+
+        if chain in self.ETHERSCAN_PAID_CHAINS:
+            return [{
+                "message": f"Whale tracking for {chain_conf['name']} requires Etherscan V2 paid plan. "
+                           f"Use /whales ethereum, /whales bitcoin, /whales polygon, or /whales solana instead."
+            }]
 
         key = f"whales_{chain}_{min_value}_{limit}"
         if key in cache:
