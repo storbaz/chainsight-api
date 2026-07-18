@@ -43,10 +43,55 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.APP_NAME,
         version=settings.APP_VERSION,
-        description="Unified Crypto Intelligence API — Prices, On-Chain Data, DeFi Analytics, and Sentiment in one place.",
+        description=(
+            "# ChainSight API — Unified Crypto Intelligence\n\n"
+            "**30+ endpoints** for real-time crypto prices, on-chain whale tracking, DeFi analytics, "
+            "security checks (honeypot), forex/stocks, and alpha signals.\n\n"
+            "---\n\n"
+            "## Quick Start\n"
+            "1. **Free tier** — `/v1/market/top`, `/v1/market/coin/{id}`, `/v1/defi/protocols`, `/v1/whales/eth`\n"
+            "2. **Pro tier** — `/v1/security/honeypot/{address}`, `/v1/signals/momentum`, `/v1/signals/whale-accumulation`\n\n"
+            "---\n\n"
+            "## Endpoints by Category\n"
+            "| Category | Endpoints | Auth |\n"
+            "| --- | --- | --- |\n"
+            "| Market | `/v1/market/top`, `/coin/{id}`, `/coins`, `/compare`, `/trending`, `/global`, `/history`, `/correlation`, `/fear-greed`, `/news` | Free |\n"
+            "| DeFi | `/v1/defi/protocols`, `/yields`, `/stablecoins` | Free |\n"
+            "| Whales | `/v1/whales/eth`, `/chain/{chain}`, `/gas`, `/chains` | Free |\n"
+            "| Forex | `/v1/forex/rates`, `/pairs`, `/history`, `/overview`, `/search`, `/major` | Free |\n"
+            "| Security | `/v1/security/honeypot/{address}`, `/token/{address}`, `/batch-check` | Pro |\n"
+            "| Signals | `/v1/signals/momentum`, `/whale-accumulation`, `/volume-anomaly` | Pro |\n"
+            "| Alerts | `/v1/alerts/webhook` (CRUD) | Free |\n\n"
+            "---\n\n"
+            "## Rate Limits\n"
+            "- Free: 60 req/min\n"
+            "- Pro: 600 req/min\n\n"
+            "## Pricing\n"
+            "- **Free** — Market, DeFi, Whales, Forex, News\n"
+            "- **Pro $9.99/mo** — + Security, Alpha Signals, White-label widgets\n\n"
+            "---\n\n"
+            "[RapidAPI](https://rapidapi.com/storbaz/api/chainsight) · "
+            "[Telegram Bot](https://t.me/CryptoInsightAPI_bot) · "
+            "[GitHub](https://github.com/storbaz/chainsight-api)"
+        ),
         docs_url="/docs",
         redoc_url="/redoc",
         lifespan=lifespan,
+        openapi_tags=[
+            {"name": "Health", "description": "API health checks"},
+            {"name": "Market", "description": "Real-time prices, trending coins, global stats, fear & greed index"},
+            {"name": "DeFi", "description": "DeFi protocols, yields, stablecoins"},
+            {"name": "Whales", "description": "On-chain whale transaction tracking across 9 chains"},
+            {"name": "Forex", "description": "Forex rates, stocks, commodities via ECB + Yahoo Finance"},
+            {"name": "Security", "description": "Honeypot detection, token audit, batch safety checks (Pro)"},
+            {"name": "Signals", "description": "Alpha signals: momentum (RSI/MACD/Bollinger/Stochastic/VWAP), whale accumulation, volume anomalies (Pro)"},
+            {"name": "Alerts", "description": "Webhook alerts for whale movements"},
+            {"name": "News", "description": "Aggregated crypto news from top sources"},
+            {"name": "Admin", "description": "Internal admin endpoints"},
+            {"name": "Root", "description": "API root with endpoint index"},
+            {"name": "Widget", "description": "Embeddable crypto widgets for websites"},
+            {"name": "Dashboard", "description": "Live analytics dashboard"},
+        ],
     )
 
     app.add_middleware(
