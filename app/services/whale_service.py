@@ -56,7 +56,7 @@ class WhaleService:
                     params={
                         "chainid": chain_id,
                         "module": "account",
-                        "action": "txlistinternal",
+                        "action": "txlist",
                         "startblock": 0,
                         "endblock": 99999999,
                         "page": 1,
@@ -106,7 +106,7 @@ class WhaleService:
                     params={
                         "chainid": chain_id,
                         "module": "account",
-                        "action": "txlistinternal",
+                        "action": "txlist",
                         "address": addr_info["address"],
                         "startblock": 0,
                         "endblock": 99999999,
@@ -158,37 +158,50 @@ class WhaleService:
 
     async def _get_bitcoin_whales(self, min_value: float, limit: int, key: str) -> list[dict]:
         try:
-            resp = await http_client.get(
-                "https://blockstream.info/api/mempool/recent",
-                timeout=15,
-            )
-            resp.raise_for_status()
-            txs = resp.json()
+            BTC_WHALE_ADDRESSES = [
+                "34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo",
+                "bc1qgdjqv0av3q56jvd82tkdjpy7gd6pfv9e2m7embe69vu7d2z589qqkthy6",
+                "1LQoKistAqcGDMjN3JbujYRe3eXvsYcTe6",
+                "3Kzh9qAqVWQhEsfQz7zEQL1EuSx5tyNLNS",
+            ]
 
-            results = []
-            for tx in txs:
-                total_out = sum(o.get("value", 0) for o in tx.get("vout", []))
-                btc_value = total_out / 1e8
-                if btc_value >= min_value:
-                    results.append({
-                        "chain": "bitcoin",
-                        "hash": tx.get("txid", ""),
-                        "from_address": "multiple inputs",
-                        "to_address": tx.get("vout", [{}])[0].get("scriptpubkey_address", "") if tx.get("vout") else "",
-                        "value": round(btc_value, 6),
-                        "token_symbol": "BTC",
-                        "gas_used": tx.get("fee", 0),
-                        "gas_price": 0,
-                        "block_number": 0,
-                        "timestamp": "",
-                        "explorer_url": f"https://blockstream.info/tx/{tx.get('txid', '')}",
-                    })
+            all_results = []
+            for addr in BTC_WHALE_ADDRESSES[:2]:
+                try:
+                    resp = await http_client.get(
+                        f"https://blockstream.info/api/address/{addr}/txs",
+                        timeout=15,
+                    )
+                    resp.raise_for_status()
+                    txs = resp.json()
 
-            if not results:
-                results = [{"message": "No whale BTC transactions in current mempool"}]
-            cache[key] = results[:limit]
-            stale_cache[key] = results[:limit]
-            return results[:limit]
+                    for tx in txs[:10]:
+                        total_out = sum(o.get("value", 0) for o in tx.get("vout", []))
+                        btc_value = total_out / 1e8
+                        if btc_value >= min_value:
+                            status = tx.get("status", {})
+                            all_results.append({
+                                "chain": "bitcoin",
+                                "hash": tx.get("txid", ""),
+                                "from_address": addr[:12] + "...",
+                                "to_address": tx.get("vout", [{}])[0].get("scriptpubkey_address", "")[:12] + "..." if tx.get("vout") else "",
+                                "value": round(btc_value, 6),
+                                "token_symbol": "BTC",
+                                "gas_used": tx.get("fee", 0),
+                                "gas_price": 0,
+                                "block_number": status.get("block_height", 0),
+                                "timestamp": str(status.get("block_time", "")),
+                                "explorer_url": f"https://blockstream.info/tx/{tx.get('txid', '')}",
+                            })
+                except Exception:
+                    continue
+
+            if not all_results:
+                all_results = [{"message": "No whale BTC transactions found"}]
+            all_results.sort(key=lambda x: x.get("value", 0), reverse=True)
+            cache[key] = all_results[:limit]
+            stale_cache[key] = all_results[:limit]
+            return all_results[:limit]
         except Exception as e:
             return stale_cache.get(key, [{"error": str(e)}])
 
