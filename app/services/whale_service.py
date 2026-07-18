@@ -194,54 +194,55 @@ class WhaleService:
 
     async def _get_solana_whales(self, min_value: float, limit: int, key: str) -> list[dict]:
         try:
-            resp = await http_client.post(
-                "https://api.mainnet-beta.solana.com",
-                json={
-                    "jsonrpc": "2.0",
-                    "id": 1,
-                    "method": "getRecentBlockhash",
-                },
-            )
-            resp.raise_for_status()
-
-            resp2 = await http_client.get(
-                "https://public-api.solscan.io/transaction/last",
-                params={"limit": 50},
-                headers={"Accept": "application/json"},
-            )
+            SOL_WHALE_ADDRESSES = [
+                "5tzFkiKscjHKsN2FzXoyFBfiDjQJt3GFZx8p3bHkxQBY",
+                "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+            ]
 
             results = []
-            if resp2.status_code == 200:
-                data = resp2.json().get("data", [])
-                for tx in data:
-                    lamports = tx.get("fee", 0)
-                    sol_value = lamports / 1e9
-                    if sol_value >= min_value:
+            for addr in SOL_WHALE_ADDRESSES:
+                try:
+                    resp = await http_client.post(
+                        "https://api.mainnet-beta.solana.com",
+                        json={
+                            "jsonrpc": "2.0",
+                            "id": 1,
+                            "method": "getSignaturesForAddress",
+                            "params": [addr, {"limit": 10}],
+                        },
+                        timeout=15,
+                    )
+                    resp.raise_for_status()
+                    sigs = resp.json().get("result", [])
+
+                    for sig in sigs:
+                        slot = sig.get("slot", 0)
+                        err = sig.get("err")
+                        if err:
+                            continue
                         results.append({
                             "chain": "solana",
-                            "hash": tx.get("txHash", ""),
-                            "from_address": tx.get("feePayer", ""),
+                            "hash": sig.get("signature", ""),
+                            "from_address": addr,
                             "to_address": "",
-                            "value": round(sol_value, 4),
+                            "value": 0,
                             "token_symbol": "SOL",
-                            "gas_used": tx.get("fee", 0),
+                            "gas_used": sig.get("fee", 0),
                             "gas_price": 0,
-                            "block_number": tx.get("slot", 0),
-                            "timestamp": str(tx.get("blockTime", "")),
-                            "explorer_url": f"https://solscan.io/tx/{tx.get('txHash', '')}",
+                            "block_number": slot,
+                            "timestamp": str(sig.get("blockTime", "")),
+                            "explorer_url": f"https://solscan.io/tx/{sig.get('signature', '')}",
                         })
+                except Exception:
+                    continue
 
             if not results:
-                resp3 = await http_client.get(
-                    "https://api.mainnet-beta.solana.com",
-                    timeout=10,
-                )
-                results = [{"message": "No whale transactions found on Solana (API limited)"}]
-
+                results = [{"message": "No recent Solana whale transactions found"}]
             cache[key] = results[:limit]
+            stale_cache[key] = results[:limit]
             return results[:limit]
         except Exception as e:
-            return cache.get(key, [{"error": str(e)}])
+            return stale_cache.get(key, [{"error": str(e)}])
 
     async def get_gas_estimate(self, chain: str = "ethereum") -> dict:
         chain_conf = CHAINS.get(chain)

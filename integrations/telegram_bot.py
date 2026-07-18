@@ -1,14 +1,17 @@
 """ChainSight Telegram Bot — Webhook mode for free hosting."""
 
 import os
+import json
+import asyncio
 import httpx
 from difflib import get_close_matches
 from fastapi import FastAPI, Request
-from telegram import Update
+from telegram import Update, Bot
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 CHAINSIGHT_BASE = os.environ.get("CHAINSIGHT_BASE_URL", "https://chainsight-api.onrender.com")
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
+ALERTS_FILE = "/tmp/price_alerts.json"
 COMMON_COINS = [
     "bitcoin", "ethereum", "tether", "binancecoin", "solana",
     "ripple", "usd-coin", "steth", "dogecoin", "cardano",
@@ -20,6 +23,49 @@ application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 api = FastAPI()
 client = httpx.AsyncClient(timeout=10)
 
+# ---------- Alerts persistence ----------
+
+def _load_alerts() -> dict:
+    try:
+        with open(ALERTS_FILE, "r") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def _save_alerts(data: dict):
+    with open(ALERTS_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def _add_alert(user_id: int, coin_id: str, direction: str, target_price: float) -> str:
+    alerts = _load_alerts()
+    uid = str(user_id)
+    if uid not in alerts:
+        alerts[uid] = []
+    alert_id = len(alerts[uid]) + 1
+    alerts[uid].append({
+        "id": alert_id,
+        "coin": coin_id,
+        "direction": direction,
+        "target": target_price,
+        "triggered": False,
+    })
+    _save_alerts(alerts)
+    return alert_id
+
+
+def _remove_alert(user_id: int, alert_id: int) -> bool:
+    alerts = _load_alerts()
+    uid = str(user_id)
+    if uid in alerts:
+        alerts[uid] = [a for a in alerts[uid] if a.get("id") != alert_id]
+        _save_alerts(alerts)
+        return True
+    return False
+
+
+# ---------- Helpers ----------
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -40,7 +86,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "*Whales:*\n"
         "/whales <chain> — Whale txs (eth/btc/bsc/sol)\n\n"
         "*News:*\n"
-        "/news — Latest crypto news",
+        "/news — Latest crypto news\n\n"
+        "*Price Alerts:*\n"
+        "/alert <coin> <above|below> <price> — Set alert\n"
+        "/alerts — List your alerts\n"
+        "/cancel <id> — Remove alert",
         parse_mode="Markdown",
     )
 
@@ -137,7 +187,6 @@ async def gas(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def gas_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    data = await _get("/v1/whales/gas")
     chains_data = await _get("/v1/whales/chains")
     if not chains_data:
         await update.message.reply_text("❌ Error. Try again.")
@@ -315,6 +364,122 @@ async def news(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("\n".join(lines), parse_mode="Markdown", disable_web_page_preview=True)
 
 
+# ---------- Price Alerts ----------
+
+async def alert(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if len(context.args) < 3:
+        await update.message.reply_text(
+            "Usage: /alert BTC above 70000\n\n"
+            "Examples:\n"
+            "/alert ETH below 3000\n"
+            "/alert SOL above 200\n"
+            "/alert BTC above 150000"
+        )
+        return
+    coin = context.args[0].lower().strip()
+    direction = context.args[1].lower().strip()
+    try:
+        target_price = float(context.args[2].replace(",", ""))
+    except ValueError:
+        await update.message.reply_text("❌ Invalid price. Example: /alert BTC above 70000")
+        return
+    if direction not in ("above", "below"):
+        await update.message.reply_text("❌ Direction must be 'above' or 'below'.")
+        return
+
+    alert_id = _add_alert(update.effective_user.id, coin, direction, target_price)
+    symbol = coin.upper()
+    await update.message.reply_text(
+        f"✅ *Alert #{alert_id} created!*\n\n"
+        f"I'll notify you when *{symbol}* goes *{direction}* ${target_price:,.2f}",
+        parse_mode="Markdown",
+    )
+
+
+async def list_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    alerts = _load_alerts().get(str(update.effective_user.id), [])
+    active = [a for a in alerts if not a.get("triggered")]
+    if not active:
+        await update.message.reply_text("No active alerts.\n\nUse /alert <coin> <above|below> <price> to set one.")
+        return
+    lines = ["🔔 *Your Active Alerts*\n"]
+    for a in active:
+        lines.append(f"#{a['id']} — *{a['coin'].upper()}* {a['direction']} ${a['target']:,.2f}")
+    lines.append(f"\nTotal: {len(active)} alerts\nCancel: /cancel <id>")
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+
+async def cancel_alert(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.message.reply_text("Usage: /cancel <alert_id>\nUse /alerts to see your alerts.")
+        return
+    try:
+        alert_id = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("❌ Invalid alert ID.")
+        return
+    removed = _remove_alert(update.effective_user.id, alert_id)
+    if removed:
+        await update.message.reply_text(f"✅ Alert #{alert_id} removed.")
+    else:
+        await update.message.reply_text(f"❌ Alert #{alert_id} not found.")
+
+
+# ---------- Background alert checker ----------
+
+async def check_alerts():
+    """Periodically check prices and notify users of triggered alerts."""
+    while True:
+        try:
+            await asyncio.sleep(120)
+            alerts = _load_alerts()
+            changed = False
+            checked_coins: dict[str, float] = {}
+
+            for uid, user_alerts in list(alerts.items()):
+                for a in user_alerts:
+                    if a.get("triggered"):
+                        continue
+                    coin = a["coin"]
+                    if coin not in checked_coins:
+                        data = await _get(f"/v1/market/coin/{coin}")
+                        if data and "current_price" in data:
+                            checked_coins[coin] = data["current_price"]
+                        await asyncio.sleep(2)
+                    price_now = checked_coins.get(coin)
+                    if price_now is None:
+                        continue
+                    target = a["target"]
+                    triggered = False
+                    if a["direction"] == "above" and price_now >= target:
+                        triggered = True
+                    elif a["direction"] == "below" and price_now <= target:
+                        triggered = True
+                    if triggered:
+                        a["triggered"] = True
+                        changed = True
+                        try:
+                            bot = application.bot
+                            await bot.send_message(
+                                chat_id=int(uid),
+                                text=(
+                                    f"🔔 *Price Alert!*\n\n"
+                                    f"*{coin.upper()}* is now *${price_now:,.2f}*\n"
+                                    f"Your target: {a['direction']} ${target:,.2f}\n\n"
+                                    f"Use /alerts to manage your alerts"
+                                ),
+                                parse_mode="Markdown",
+                            )
+                        except Exception:
+                            pass
+            if changed:
+                _save_alerts(alerts)
+        except Exception:
+            await asyncio.sleep(300)
+
+
+# ---------- Handlers ----------
+
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("help", start))
 application.add_handler(CommandHandler("price", price))
@@ -330,12 +495,16 @@ application.add_handler(CommandHandler("stocks", stocks))
 application.add_handler(CommandHandler("overview", overview))
 application.add_handler(CommandHandler("whales", whales))
 application.add_handler(CommandHandler("news", news))
+application.add_handler(CommandHandler("alert", alert))
+application.add_handler(CommandHandler("alerts", list_alerts))
+application.add_handler(CommandHandler("cancel", cancel_alert))
 
 
 @api.on_event("startup")
 async def startup():
     await application.initialize()
     await application.bot.set_webhook(url="https://crypto-insight-bot.onrender.com/webhook")
+    asyncio.create_task(check_alerts())
     print("Bot started with webhook")
 
 

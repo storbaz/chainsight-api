@@ -97,27 +97,41 @@ WHALE_ADDRESSES = {
         {"address": "0x00000000219ab540356cBB839Cbe05303d7705Fa", "label": "ETH 2.0 Deposit Contract"},
         {"address": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", "label": "Wrapped ETH (WETH)"},
         {"address": "0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97", "label": "Vitalik Buterin"},
+        {"address": "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18", "label": "Bitfinex Hot Wallet"},
+        {"address": "0xDFd5293D8e347dFe59E90eFd55b2956a1343963d", "label": "OKX Hot Wallet"},
     ],
     "bsc": [
         {"address": "0xF977814e90dA44bFA03b6295A0616a897441aceC", "label": "Binance Hot Wallet"},
         {"address": "0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8", "label": "Binance Cold Wallet"},
+        {"address": "0x8894E0a0c962CB723c1ef8a1B6764b68f7a0e5d1", "label": "Binance Hot Wallet 2"},
+        {"address": "0x1CB6b80bB8dA4c6B5253E64751E18E0a3895c43a", "label": "PancakeSwap Router"},
+        {"address": "0x5Db4796189cA745d7ff0EdF3A96bD8980c79d4E9", "label": "Venus Protocol"},
         {"address": "0x0000000000000000000000000000000000001004", "label": "BSC Native Staking"},
     ],
     "polygon": [
         {"address": "0x0000000000000000000000000000000000001010", "label": "MATIC Staking"},
         {"address": "0x3E93Fbb004C722750606A8086a2Dbde12708D206", "label": "Aave Polygon Pool"},
+        {"address": "0xD9e1cE17f2641f24aE83637ab66a2cca9C378B9F", "label": "SushiSwap Router"},
     ],
     "arbitrum": [
         {"address": "0xC35DADB65012eC5796536bD9864eD8773aBc74C4", "label": "Uniswap Router"},
+        {"address": "0x1F98431c8aD98523631AE4a59f267346ea31F984", "label": "Uniswap Factory"},
     ],
-    "base": [],
+    "base": [
+        {"address": "0x2626664c2603336E57B271c5C0b26F421741e481", "label": "Uniswap Router"},
+    ],
     "optimism": [
         {"address": "0x2502B2bB8F287082b6E323E73C30D1D3F58de575", "label": "Synthetix Staking"},
+        {"address": "0xE592427A0AEce92De3Edee1F18E0157C05861564", "label": "Uniswap Router"},
     ],
     "avalanche": [
         {"address": "0x8b83e91e28F8A7D8B5a4b6B22c2F9B7B83C9C2F1", "label": "Bent Finance"},
+        {"address": "0x60aE6168C76500e9E4c16037675Bc5d4e1B10552", "label": "Trader Joe Router"},
     ],
-    "solana": [],
+    "solana": [
+        {"address": "5tzFkiKscjHKsN2FzXoyFBfiDjQJt3GFZx8p3bHkxQBY", "label": "Binance Solana"},
+        {"address": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM", "label": "Coinbase Solana"},
+    ],
 }
 
 

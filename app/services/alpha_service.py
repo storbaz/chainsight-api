@@ -172,6 +172,18 @@ class AlphaService:
             sma_20 = round(sum(closes[-20:]) / min(20, len(closes[-20:])), 2)
             sma_50 = round(sum(closes[-50:]) / min(50, len(closes[-50:])), 2)
 
+            bb = self._calculate_bollinger(closes)
+            bb_upper = bb["upper"][-1] if bb["upper"] else 0
+            bb_lower = bb["lower"][-1] if bb["lower"] else 0
+            bb_middle = bb["middle"][-1] if bb["middle"] else 0
+
+            stoch = self._calculate_stochastic(closes)
+            stoch_k = stoch["k"][-1] if stoch["k"] else 50
+            stoch_d = stoch["d"][-1] if stoch["d"] else 50
+
+            vwap_vals = self._calculate_vwap(closes)
+            current_vwap = vwap_vals[-1] if vwap_vals else current_price
+
             signals = []
             overall_score = 0
 
@@ -209,6 +221,43 @@ class AlphaService:
                 signals.append({"type": "SMA_CROSS_BEAR", "interpretation": "20-day SMA below 50-day SMA - death cross", "weight": -1})
                 overall_score -= 1
 
+            if bb_upper > 0:
+                if current_price >= bb_upper:
+                    signals.append({"type": "BB_UPPER_BREAK", "value": bb_upper, "interpretation": "Price at/above upper Bollinger Band - potential reversal or breakout", "weight": -1})
+                    overall_score -= 1
+                elif current_price <= bb_lower:
+                    signals.append({"type": "BB_LOWER_BREAK", "value": bb_lower, "interpretation": "Price at/below lower Bollinger Band - potential bounce", "weight": 1})
+                    overall_score += 1
+                else:
+                    bb_pct = (current_price - bb_lower) / (bb_upper - bb_lower) if bb_upper != bb_lower else 0.5
+                    if bb_pct > 0.8:
+                        signals.append({"type": "BB_NEAR_UPPER", "value": round(bb_pct * 100, 1), "interpretation": f"Price near upper Bollinger Band ({bb_pct:.0%} of range)", "weight": -1})
+                        overall_score -= 1
+                    elif bb_pct < 0.2:
+                        signals.append({"type": "BB_NEAR_LOWER", "value": round(bb_pct * 100, 1), "interpretation": f"Price near lower Bollinger Band ({bb_pct:.0%} of range)", "weight": 1})
+                        overall_score += 1
+
+            if stoch_k < 20 and stoch_d < 20:
+                signals.append({"type": "STOCH_OVERSOLD", "k": stoch_k, "d": stoch_d, "interpretation": "Stochastic in oversold zone - potential buy", "weight": 2})
+                overall_score += 2
+            elif stoch_k > 80 and stoch_d > 80:
+                signals.append({"type": "STOCH_OVERBOUGHT", "k": stoch_k, "d": stoch_d, "interpretation": "Stochastic in overbought zone - potential sell", "weight": -2})
+                overall_score -= 2
+            elif stoch_k > stoch_d and stoch_k < 50:
+                signals.append({"type": "STOCH_BULL_CROSS", "k": stoch_k, "d": stoch_d, "interpretation": "Stochastic K crossing above D in lower range - bullish", "weight": 1})
+                overall_score += 1
+            elif stoch_k < stoch_d and stoch_k > 50:
+                signals.append({"type": "STOCH_BEAR_CROSS", "k": stoch_k, "d": stoch_d, "interpretation": "Stochastic K crossing below D in upper range - bearish", "weight": -1})
+                overall_score -= 1
+
+            if current_vwap > 0:
+                if current_price > current_vwap * 1.02:
+                    signals.append({"type": "ABOVE_VWAP", "vwap": current_vwap, "interpretation": f"Price above VWAP ({((current_price/current_vwap)-1)*100:.1f}%) - bullish", "weight": 1})
+                    overall_score += 1
+                elif current_price < current_vwap * 0.98:
+                    signals.append({"type": "BELOW_VWAP", "vwap": current_vwap, "interpretation": f"Price below VWAP ({((1-current_price/current_vwap))*100:.1f}%) - bearish", "weight": -1})
+                    overall_score -= 1
+
             if overall_score >= 3:
                 bias = "STRONG BUY"
             elif overall_score >= 1:
@@ -231,6 +280,12 @@ class AlphaService:
                     "macd_histogram": macd_histogram,
                     "sma_20": sma_20,
                     "sma_50": sma_50,
+                    "bollinger_upper": bb_upper,
+                    "bollinger_middle": bb_middle,
+                    "bollinger_lower": bb_lower,
+                    "stochastic_k": stoch_k,
+                    "stochastic_d": stoch_d,
+                    "vwap": current_vwap,
                 },
                 "signals": signals,
                 "overall_score": overall_score,
@@ -280,6 +335,58 @@ class AlphaService:
         for p in prices[period:]:
             ema.append(p * multiplier + ema[-1] * (1 - multiplier))
         return ema
+
+    @staticmethod
+    def _calculate_bollinger(closes: list[float], period: int = 20, std_dev: float = 2.0) -> dict:
+        if len(closes) < period:
+            return {"upper": [], "middle": [], "lower": []}
+        middle = []
+        upper = []
+        lower = []
+        for i in range(period - 1, len(closes)):
+            window = closes[i - period + 1: i + 1]
+            avg = sum(window) / period
+            variance = sum((x - avg) ** 2 for x in window) / period
+            std = math.sqrt(variance)
+            middle.append(round(avg, 2))
+            upper.append(round(avg + std_dev * std, 2))
+            lower.append(round(avg - std_dev * std, 2))
+        return {"upper": upper, "middle": middle, "lower": lower}
+
+    @staticmethod
+    def _calculate_stochastic(closes: list[float], highs: list[float] = None, lows: list[float] = None, period: int = 14) -> dict:
+        if len(closes) < period:
+            return {"k": [], "d": []}
+        if not highs:
+            highs = [c * 1.01 for c in closes]
+        if not lows:
+            lows = [c * 0.99 for c in closes]
+        k_values = []
+        for i in range(period - 1, len(closes)):
+            window_high = max(highs[i - period + 1: i + 1])
+            window_low = min(lows[i - period + 1: i + 1])
+            if window_high == window_low:
+                k_values.append(50.0)
+            else:
+                k_values.append(round(((closes[i] - window_low) / (window_high - window_low)) * 100, 2))
+        d_values = []
+        for i in range(len(k_values)):
+            start = max(0, i - 2)
+            d_values.append(round(sum(k_values[start:i + 1]) / (i - start + 1), 2))
+        return {"k": k_values, "d": d_values}
+
+    @staticmethod
+    def _calculate_vwap(closes: list[float], volumes: list[float] = None) -> list[float]:
+        if not volumes:
+            volumes = [1000000] * len(closes)
+        cumulative_vol = 0
+        cumulative_pv = 0
+        vwap_values = []
+        for i in range(len(closes)):
+            cumulative_vol += volumes[i]
+            cumulative_pv += closes[i] * volumes[i]
+            vwap_values.append(round(cumulative_pv / cumulative_vol, 2)) if cumulative_vol > 0 else vwap_values.append(closes[i])
+        return vwap_values
 
 
 alpha_service = AlphaService()
