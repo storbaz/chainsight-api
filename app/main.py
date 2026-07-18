@@ -151,6 +151,8 @@ def create_app() -> FastAPI:
                 "forex_pairs": "/v1/forex/pairs",
                 "forex_overview": "/v1/forex/overview",
                 "forex_history": "/v1/forex/history?symbol=EUR/USD&range=1mo",
+                "admin_devto": "/v1/admin/publish-devto",
+                "admin_hashnode": "/v1/admin/publish-hashnode",
             },
         }
 
