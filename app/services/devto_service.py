@@ -3,7 +3,7 @@
 import os
 import json
 import httpx
-from datetime import datetime
+from datetime import datetime, timezone
 
 DEVTO_API_KEY = os.environ.get("DEVTO_API_KEY", "")
 DEVTO_API = "https://dev.to/api"
@@ -403,7 +403,7 @@ async def publish_next() -> dict:
         from datetime import timedelta
         import random
         last = datetime.strptime(last_date, "%Y-%m-%d")
-        days_since = (datetime.utcnow() - last).days
+        days_since = (datetime.now(timezone.utc) - last).days
         min_days = random.randint(1, 3)
         if days_since < min_days:
             return {"status": "skipped", "reason": f"Published {days_since}d ago, min {min_days}d"}
@@ -427,7 +427,7 @@ async def publish_next() -> dict:
         )
 
     save_article_index(idx + 1)
-    save_last_publish_date(datetime.utcnow().strftime("%Y-%m-%d"))
+    save_last_publish_date(datetime.now(timezone.utc).strftime("%Y-%m-%d"))
 
     if resp.status_code in (200, 201):
         data = resp.json()

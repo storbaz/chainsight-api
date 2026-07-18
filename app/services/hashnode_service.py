@@ -3,7 +3,7 @@
 import os
 import json
 import httpx
-from datetime import datetime
+from datetime import datetime, timezone
 
 HASHNODE_API_TOKEN = os.environ.get("HASHNODE_API_TOKEN", "")
 HASHNODE_PUBLICATION_ID = os.environ.get("HASHNODE_PUBLICATION_ID", "")
@@ -388,7 +388,7 @@ async def publish_next() -> dict:
     if last_date:
         import random
         last = datetime.strptime(last_date, "%Y-%m-%d")
-        days_since = (datetime.utcnow() - last).days
+        days_since = (datetime.now(timezone.utc) - last).days
         min_days = random.randint(2, 4)
         if days_since < min_days:
             return {"status": "skipped", "reason": f"Published {days_since}d ago, min {min_days}d"}
@@ -449,7 +449,7 @@ async def publish_next() -> dict:
         )
 
     save_article_index(idx + 1)
-    save_last_publish_date(datetime.utcnow().strftime("%Y-%m-%d"))
+    save_last_publish_date(datetime.now(timezone.utc).strftime("%Y-%m-%d"))
 
     publish_data = publish_resp.json()
     if publish_resp.status_code == 200 and not publish_data.get("errors"):
