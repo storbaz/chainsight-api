@@ -12,7 +12,7 @@ http_client = httpx.AsyncClient(timeout=15)
 
 class WhaleService:
 
-    ETHERSCAN_PAID_CHAINS = {"bsc", "arbitrum"}
+    CHAINS_USING_GOLDRUSH = {"bsc", "arbitrum"}
 
     async def get_whale_transactions(
         self, chain: str = "ethereum", min_value: float = 100, limit: int = 20
@@ -20,12 +20,6 @@ class WhaleService:
         chain_conf = CHAINS.get(chain)
         if not chain_conf:
             return [{"error": f"Chain '{chain}' not supported. Use: {list(CHAINS.keys())}"}]
-
-        if chain in self.ETHERSCAN_PAID_CHAINS:
-            return [{
-                "message": f"Whale tracking for {chain_conf['name']} requires Etherscan V2 paid plan. "
-                           f"Use /whales ethereum, /whales bitcoin, /whales polygon, or /whales solana instead."
-            }]
 
         key = f"whales_{chain}_{min_value}_{limit}"
         if key in cache:
@@ -40,12 +34,17 @@ class WhaleService:
         if chain == "solana":
             return await self._get_solana_whales(min_value, limit, key)
 
+        if chain in self.CHAINS_USING_GOLDRUSH and settings.GOLDRUSH_API_KEY:
+            return await self._get_goldrush_whales(chain, chain_conf, min_value, limit, key)
+
         return await self._get_evm_whales(chain, chain_conf, min_value, limit, key)
 
     async def _refresh_whales(self, chain, chain_conf, min_value, limit, key):
         try:
             if chain == "solana":
                 result = await self._get_solana_whales(min_value, limit, key)
+            elif chain in self.CHAINS_USING_GOLDRUSH and settings.GOLDRUSH_API_KEY:
+                result = await self._get_goldrush_whales(chain, chain_conf, min_value, limit, key)
             else:
                 result = await self._get_evm_whales(chain, chain_conf, min_value, limit, key)
             stale_cache[key] = result
@@ -198,6 +197,76 @@ class WhaleService:
             except Exception:
                 continue
         return results
+
+    async def _get_goldrush_whales(
+        self, chain: str, chain_conf: dict, min_value: float, limit: int, key: str
+    ) -> list[dict]:
+        addresses = WHALE_ADDRESSES.get(chain, [])
+        if not addresses or not settings.GOLDRUSH_API_KEY:
+            return []
+
+        goldrush_id = chain_conf.get("goldrush_chain_id", chain)
+        all_results = []
+        symbol = chain_conf["symbol"]
+
+        async def _fetch_goldrush_addr(addr_info: dict) -> list[dict]:
+            try:
+                resp = await http_client.get(
+                    f"https://api.covalenthq.com/v1/{goldrush_id}/address/{addr_info['address']}/transfers_v2/",
+                    params={"page-size": 50, "quote-currency": "USD"},
+                    headers={"Authorization": f"Bearer {settings.GOLDRUSH_API_KEY}"},
+                    timeout=20,
+                )
+                if resp.status_code != 200:
+                    return []
+                data = resp.json()
+                items = data.get("data", {}).get("items", [])
+                results = []
+                for tx in items:
+                    transfers = tx.get("transfers", [])
+                    for t in transfers:
+                        quote = t.get("quote_rate") or 0
+                        raw = int(t.get("delta", "0") or "0")
+                        decimals = t.get("contract_decimals", 18)
+                        value_token = abs(raw) / (10 ** decimals) if decimals else abs(raw)
+                        value_usd = abs(float(t.get("quote", 0) or 0))
+                        if value_usd < min_value:
+                            continue
+                        from_addr = t.get("from_address", "")
+                        to_addr = t.get("to_address", "")
+                        is_outgoing = from_addr.lower() == addr_info["address"].lower()
+                        results.append({
+                            "chain": chain,
+                            "label": addr_info.get("label", ""),
+                            "hash": tx.get("tx_hash", ""),
+                            "from_address": from_addr,
+                            "to_address": to_addr,
+                            "value": round(value_usd, 2),
+                            "token_symbol": t.get("contract_ticker_symbol", symbol),
+                            "token_name": t.get("contract_name", ""),
+                            "gas_used": 0,
+                            "gas_price": 0,
+                            "block_number": tx.get("block_height", 0),
+                            "timestamp": tx.get("block_signed_at", ""),
+                            "explorer_url": f"{chain_conf['explorer_url']}/tx/{tx.get('tx_hash', '')}",
+                            "direction": "outgoing" if is_outgoing else "incoming",
+                        })
+                return results
+            except Exception:
+                return []
+
+        addr_results = await asyncio.gather(
+            *[_fetch_goldrush_addr(a) for a in addresses[:5]]
+        )
+        for r in addr_results:
+            all_results.extend(r)
+
+        all_results.sort(key=lambda x: x.get("value", 0), reverse=True)
+        if not all_results:
+            all_results = [{"message": f"No whale transactions found on {chain_conf['name']}"}]
+        cache[key] = all_results[:limit]
+        stale_cache[key] = all_results[:limit]
+        return all_results[:limit]
 
     async def _get_bitcoin_whales(self, min_value: float, limit: int, key: str) -> list[dict]:
         try:

@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     FEAR_GREED_URL: str = "https://api.alternative.me/fng/"
 
     ETHERSCAN_API_KEY: str = ""
+    GOLDRUSH_API_KEY: str = ""
 
     CACHE_TTL: int = 60
 
