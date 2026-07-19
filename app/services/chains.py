@@ -33,7 +33,7 @@ CHAINS = {
         "name": "BNB Chain",
         "symbol": "BNB",
         "chain_id": 56,
-        "goldrush_chain_id": "bsc",
+        "goldrush_chain_id": "bsc-mainnet",
         "explorer_api": "https://api.etherscan.io/v2/api",
         "explorer_url": "https://bscscan.com",
         "rpc": "https://bsc-dataseed1.binance.org",
