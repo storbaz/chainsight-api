@@ -6,7 +6,7 @@ import asyncio
 import httpx
 from difflib import get_close_matches
 from fastapi import FastAPI, Request
-from telegram import Update, Bot
+from telegram import Update, Bot, MenuButtonCommands
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 CHAINSIGHT_BASE = os.environ.get("CHAINSIGHT_BASE_URL", "https://chainsight-api.onrender.com")
@@ -94,6 +94,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/cancel id — Remove alert"
     )
     await update.message.reply_text(text, parse_mode="HTML")
+    try:
+        await context.bot.set_chat_menu_button(
+            chat_id=update.effective_chat.id,
+            menu_button=MenuButtonCommands(type="commands"),
+        )
+    except Exception:
+        pass
 
 
 async def _get(path: str, params: dict = None) -> dict | None:
@@ -313,21 +320,24 @@ async def overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if forex_pairs:
         lines.append("<b>Forex:</b>")
         for p in forex_pairs:
-            ch = p.get("change_pct", 0) or 0
+            price = p.get("price", 0) or 0
+            ch = p.get("change_24h", 0) or 0
             emoji = "🟢" if ch >= 0 else "🔴"
-            lines.append(f"  {p['symbol']}: {p.get('rate', 0):.4f} {emoji} {ch:+.2f}%")
+            lines.append(f"  {p['symbol']}: {price:.4f} {emoji} {ch:+.2f}%")
     if stocks_list:
         lines.append("\n<b>Stocks:</b>")
         for s in stocks_list:
-            ch = s.get("change_pct", 0) or 0
+            price = s.get("price", 0) or 0
+            ch = s.get("change_24h", 0) or 0
             emoji = "🟢" if ch >= 0 else "🔴"
-            lines.append(f"  {s['symbol']}: ${s.get('price', 0):,.2f} {emoji} {ch:+.2f}%")
+            lines.append(f"  {s['symbol']}: ${price:,.2f} {emoji} {ch:+.2f}%")
     if commodities:
         lines.append("\n<b>Commodities:</b>")
         for c in commodities:
-            ch = c.get("change_pct", 0) or 0
+            price = c.get("price", 0) or 0
+            ch = c.get("change_24h", 0) or 0
             emoji = "🟢" if ch >= 0 else "🔴"
-            lines.append(f"  {c['symbol']}: ${c.get('price', 0):,.2f} {emoji} {ch:+.2f}%")
+            lines.append(f"  {c['symbol']}: ${price:,.2f} {emoji} {ch:+.2f}%")
     await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
@@ -540,14 +550,6 @@ application.add_handler(MessageHandler(~filters.TEXT & ~filters.COMMAND, non_tex
 async def startup():
     await application.initialize()
     await application.bot.set_webhook(url="https://crypto-insight-bot.onrender.com/webhook")
-    from telegram import MenuButtonCommands
-    try:
-        await application.bot.set_chat_menu_button(
-            chat_id=None,
-            menu_button=MenuButtonCommands(type="commands"),
-        )
-    except Exception:
-        pass
     asyncio.create_task(check_alerts())
     print("Bot started with webhook")
 
