@@ -65,11 +65,20 @@ class WhaleService:
         )
 
         if not all_results and has_blockscout:
-            logger.info(f"[Whales] {chain} Etherscan empty, trying BlockScout")
+            logger.info(f"[Whales] {chain} Etherscan empty, trying BlockScout txlist")
             all_results = await self._fetch_evm_txs(
                 chain, chain_conf, addresses, min_value,
                 api_url=chain_conf["blockscout_api"],
                 extra_params={},
+            )
+
+        if not all_results and has_blockscout:
+            logger.info(f"[Whales] {chain} BlockScout txlist empty, trying tokentx")
+            all_results = await self._fetch_evm_txs(
+                chain, chain_conf, addresses, min_value,
+                api_url=chain_conf["blockscout_api"],
+                extra_params={},
+                action="tokentx",
             )
 
         if not all_results:
@@ -85,7 +94,7 @@ class WhaleService:
 
     async def _fetch_evm_txs(
         self, chain: str, chain_conf: dict, addresses: list[dict],
-        min_value: float, api_url: str, extra_params: dict,
+        min_value: float, api_url: str, extra_params: dict, action: str = "txlist",
     ) -> list[dict]:
         symbol = chain_conf["symbol"]
         all_results = []
@@ -94,7 +103,7 @@ class WhaleService:
             try:
                 params = {
                     "module": "account",
-                    "action": "txlist",
+                    "action": action,
                     "address": addr_info["address"],
                     "startblock": 0,
                     "endblock": 99999999,
@@ -108,21 +117,28 @@ class WhaleService:
                 data = resp.json()
                 result = data.get("result", [])
                 if isinstance(result, str):
-                    logger.info(f"[Whales] {chain} addr={addr_info['address'][:12]}... msg={result[:100]}")
+                    logger.info(f"[Whales] {chain} addr={addr_info['address'][:12]}... {action} msg={result[:100]}")
                     return []
-                logger.info(f"[Whales] {chain} addr={addr_info['address'][:12]}... got {len(result)} txs")
+                logger.info(f"[Whales] {chain} addr={addr_info['address'][:12]}... {action} got {len(result)} txs")
                 results = []
                 for tx in result:
-                    value_native = int(tx.get("value", "0")) / 1e18
-                    if value_native >= min_value:
+                    if action == "tokentx":
+                        decimals = int(tx.get("tokenDecimal", 18))
+                        value_token = abs(int(tx.get("value", "0"))) / (10 ** decimals) if decimals else 0
+                        token_name = tx.get("tokenSymbol", symbol)
+                        value = value_token
+                    else:
+                        value = int(tx.get("value", "0")) / 1e18
+                        token_name = symbol
+                    if value >= min_value:
                         results.append({
                             "chain": chain,
                             "label": addr_info.get("label", ""),
                             "hash": tx.get("hash"),
                             "from_address": tx.get("from"),
                             "to_address": tx.get("to"),
-                            "value": round(value_native, 4),
-                            "token_symbol": symbol,
+                            "value": round(value, 4),
+                            "token_symbol": token_name,
                             "gas_used": int(tx.get("gasUsed", 0)),
                             "gas_price": int(tx.get("gasPrice", 0)) / 1e9,
                             "block_number": int(tx.get("blockNumber", 0)),

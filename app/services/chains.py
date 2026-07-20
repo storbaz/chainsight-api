@@ -119,9 +119,12 @@ WHALE_ADDRESSES = {
     "arbitrum": [
         {"address": "0xC35DADB65012eC5796536bD9864eD8773aBc74C4", "label": "Uniswap Router"},
         {"address": "0x1F98431c8aD98523631AE4a59f267346ea31F984", "label": "Uniswap Factory"},
+        {"address": "0x8315177aB297bA92A06054Ce80a67Ed4DBd7ed3a", "label": "Arbitrum Bridge"},
     ],
     "base": [
         {"address": "0x2626664c2603336E57B271c5C0b26F421741e481", "label": "Uniswap Router"},
+        {"address": "0x3154Cf16ccdb4C6d922629664174b904d80F2C35", "label": "Base Portal Bridge"},
+        {"address": "0xA9D1e08C7793af67e9d92fe308d5697FB81d3E43", "label": "Coinbase Prime"},
     ],
     "optimism": [
         {"address": "0x2502B2bB8F287082b6E323E73C30D1D3F58de575", "label": "Synthetix Staking"},
