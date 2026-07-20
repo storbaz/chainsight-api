@@ -15,8 +15,6 @@ http_client = httpx.AsyncClient(timeout=15)
 
 class WhaleService:
 
-    CHAINS_USING_GOLDRUSH = {"bsc", "arbitrum"}
-
     async def get_whale_transactions(
         self, chain: str = "ethereum", min_value: float = 100, limit: int = 20
     ) -> list[dict]:
@@ -37,20 +35,12 @@ class WhaleService:
         if chain == "solana":
             return await self._get_solana_whales(min_value, limit, key)
 
-        has_goldrush = chain in self.CHAINS_USING_GOLDRUSH and bool(settings.GOLDRUSH_API_KEY)
-        logger.info(f"[Whales] chain={chain} goldrush={has_goldrush} key_set={bool(settings.GOLDRUSH_API_KEY)}")
-
-        if has_goldrush:
-            return await self._get_goldrush_whales(chain, chain_conf, min_value, limit, key)
-
         return await self._get_evm_whales(chain, chain_conf, min_value, limit, key)
 
     async def _refresh_whales(self, chain, chain_conf, min_value, limit, key):
         try:
             if chain == "solana":
                 result = await self._get_solana_whales(min_value, limit, key)
-            elif chain in self.CHAINS_USING_GOLDRUSH and settings.GOLDRUSH_API_KEY:
-                result = await self._get_goldrush_whales(chain, chain_conf, min_value, limit, key)
             else:
                 result = await self._get_evm_whales(chain, chain_conf, min_value, limit, key)
             stale_cache[key] = result
@@ -61,32 +51,66 @@ class WhaleService:
         self, chain: str, chain_conf: dict, min_value: float, limit: int, key: str
     ) -> list[dict]:
         addresses = WHALE_ADDRESSES.get(chain, [])
-        all_results = []
-        chain_id = chain_conf.get("chain_id", 1)
+        if not addresses:
+            cache[key] = [{"message": f"No whale addresses configured for {chain_conf['name']}"}]
+            return cache[key]
+
+        has_blockscout = bool(chain_conf.get("blockscout_api"))
+        logger.info(f"[Whales] chain={chain} blockscout={has_blockscout}")
+
+        all_results = await self._fetch_evm_txs(
+            chain, chain_conf, addresses, min_value,
+            api_url=settings.ETHERSCAN_BASE_URL,
+            extra_params={"chainid": chain_conf.get("chain_id", 1), "apikey": settings.ETHERSCAN_API_KEY},
+        )
+
+        if not all_results and has_blockscout:
+            logger.info(f"[Whales] {chain} Etherscan empty, trying BlockScout")
+            all_results = await self._fetch_evm_txs(
+                chain, chain_conf, addresses, min_value,
+                api_url=chain_conf["blockscout_api"],
+                extra_params={},
+            )
+
+        if not all_results:
+            logger.info(f"[Whales] {chain} explorer empty, trying RPC")
+            all_results = await self._get_rpc_whales(chain, chain_conf, min_value, key)
+
+        all_results.sort(key=lambda x: x.get("value", 0), reverse=True)
+        if not all_results:
+            all_results = [{"message": f"No whale transactions found on {chain_conf['name']}"}]
+        cache[key] = all_results[:limit]
+        stale_cache[key] = all_results[:limit]
+        return all_results[:limit]
+
+    async def _fetch_evm_txs(
+        self, chain: str, chain_conf: dict, addresses: list[dict],
+        min_value: float, api_url: str, extra_params: dict,
+    ) -> list[dict]:
         symbol = chain_conf["symbol"]
+        all_results = []
 
         async def _fetch_addr_txs(addr_info: dict) -> list[dict]:
             try:
-                resp = await http_client.get(
-                    settings.ETHERSCAN_BASE_URL,
-                    params={
-                        "chainid": chain_id,
-                        "module": "account",
-                        "action": "txlist",
-                        "address": addr_info["address"],
-                        "startblock": 0,
-                        "endblock": 99999999,
-                        "page": 1,
-                        "offset": 30,
-                        "sort": "desc",
-                        "apikey": settings.ETHERSCAN_API_KEY,
-                    },
-                )
+                params = {
+                    "module": "account",
+                    "action": "txlist",
+                    "address": addr_info["address"],
+                    "startblock": 0,
+                    "endblock": 99999999,
+                    "page": 1,
+                    "offset": 30,
+                    "sort": "desc",
+                }
+                params.update(extra_params)
+                resp = await http_client.get(api_url, params=params)
                 resp.raise_for_status()
                 data = resp.json()
                 result = data.get("result", [])
                 if isinstance(result, str):
+                    logger.info(f"[Whales] {chain} addr={addr_info['address'][:12]}... msg={result[:100]}")
                     return []
+                logger.info(f"[Whales] {chain} addr={addr_info['address'][:12]}... got {len(result)} txs")
                 results = []
                 for tx in result:
                     value_native = int(tx.get("value", "0")) / 1e18
@@ -106,7 +130,8 @@ class WhaleService:
                             "explorer_url": f"{chain_conf['explorer_url']}/tx/{tx.get('hash', '')}",
                         })
                 return results
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[Whales] {chain} addr={addr_info['address'][:12]}... error: {e}")
                 return []
 
         if addresses:
@@ -116,17 +141,7 @@ class WhaleService:
             for r in addr_results:
                 all_results.extend(r)
 
-        etherscan_failed = not all_results and "Free API access is not supported" in str(all_results)
-
-        if not all_results:
-            all_results = await self._get_rpc_whales(chain, chain_conf, min_value, key)
-
-        all_results.sort(key=lambda x: x.get("value", 0), reverse=True)
-        if not all_results:
-            all_results = [{"message": f"No whale transactions found on {chain_conf['name']}"}]
-        cache[key] = all_results[:limit]
-        stale_cache[key] = all_results[:limit]
-        return all_results[:limit]
+        return all_results
 
     async def _get_rpc_whales(
         self, chain: str, chain_conf: dict, min_value: float, key: str
@@ -203,91 +218,6 @@ class WhaleService:
             except Exception:
                 continue
         return results
-
-    async def _get_goldrush_whales(
-        self, chain: str, chain_conf: dict, min_value: float, limit: int, key: str
-    ) -> list[dict]:
-        addresses = WHALE_ADDRESSES.get(chain, [])
-        if not addresses or not settings.GOLDRUSH_API_KEY:
-            return []
-
-        goldrush_id = chain_conf.get("goldrush_chain_id", chain)
-        all_results = []
-        symbol = chain_conf["symbol"]
-
-        async def _fetch_goldrush_addr(addr_info: dict) -> list[dict]:
-            try:
-                url = f"https://api.covalenthq.com/v1/{goldrush_id}/address/{addr_info['address']}/transfers_v2/"
-                logger.info(f"[GoldRush] Fetching {chain} addr={addr_info['address'][:12]}... chain_id={goldrush_id}")
-                resp = await http_client.get(
-                    url,
-                    params={"page-size": 50, "quote-currency": "USD"},
-                    headers={"Authorization": f"Bearer {settings.GOLDRUSH_API_KEY}"},
-                    timeout=20,
-                )
-                if resp.status_code != 200:
-                    logger.warning(f"[GoldRush] {chain} status={resp.status_code} body={resp.text[:200]}")
-                    return []
-                data = resp.json()
-                items = data.get("data", {}).get("items", [])
-                logger.info(f"[GoldRush] {chain} addr={addr_info['address'][:12]}... got {len(items)} items")
-                results = []
-                for tx in items:
-                    transfers = tx.get("transfers", [])
-                    for t in transfers:
-                        quote = t.get("quote_rate") or 0
-                        raw = int(t.get("delta", "0") or "0")
-                        decimals = t.get("contract_decimals", 18)
-                        value_token = abs(raw) / (10 ** decimals) if decimals else abs(raw)
-                        value_usd = abs(float(t.get("quote", 0) or 0))
-                        if value_usd < min_value:
-                            continue
-                        from_addr = t.get("from_address", "")
-                        to_addr = t.get("to_address", "")
-                        is_outgoing = from_addr.lower() == addr_info["address"].lower()
-                        results.append({
-                            "chain": chain,
-                            "label": addr_info.get("label", ""),
-                            "hash": tx.get("tx_hash", ""),
-                            "from_address": from_addr,
-                            "to_address": to_addr,
-                            "value": round(value_usd, 2),
-                            "token_symbol": t.get("contract_ticker_symbol", symbol),
-                            "token_name": t.get("contract_name", ""),
-                            "gas_used": 0,
-                            "gas_price": 0,
-                            "block_number": tx.get("block_height", 0),
-                            "timestamp": tx.get("block_signed_at", ""),
-                            "explorer_url": f"{chain_conf['explorer_url']}/tx/{tx.get('tx_hash', '')}",
-                            "direction": "outgoing" if is_outgoing else "incoming",
-                        })
-                return results
-            except Exception as e:
-                logger.warning(f"[GoldRush] {chain} exception: {e}")
-                return []
-
-        addr_results = await asyncio.gather(
-            *[_fetch_goldrush_addr(a) for a in addresses[:5]]
-        )
-        for r in addr_results:
-            all_results.extend(r)
-
-        logger.info(f"[GoldRush] {chain} total results: {len(all_results)}")
-
-        if not all_results:
-            logger.info(f"[GoldRush] {chain} empty, falling back to RPC")
-            all_results = await self._get_rpc_whales(chain, chain_conf, min_value, key)
-            if all_results and isinstance(all_results[0], dict) and "message" not in all_results[0]:
-                cache[key] = all_results[:limit]
-                stale_cache[key] = all_results[:limit]
-                return all_results[:limit]
-
-        all_results.sort(key=lambda x: x.get("value", 0), reverse=True)
-        if not all_results:
-            all_results = [{"message": f"No whale transactions found on {chain_conf['name']}"}]
-        cache[key] = all_results[:limit]
-        stale_cache[key] = all_results[:limit]
-        return all_results[:limit]
 
     async def _get_bitcoin_whales(self, min_value: float, limit: int, key: str) -> list[dict]:
         try:
