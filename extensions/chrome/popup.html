@@ -58,6 +58,15 @@ body{width:400px;max-height:600px;font-family:-apple-system,sans-serif;backgroun
 .chain-btn:hover{border-color:#555}
 .footer{text-align:center;font-size:9px;color:#444;padding:8px 16px;border-top:1px solid #1a1a3e}
 .footer a{color:#00d4aa;text-decoration:none}
+.market-section{margin-bottom:12px}
+.market-section .section-label{font-size:10px;text-transform:uppercase;color:#666;margin-bottom:6px;letter-spacing:1px;display:flex;align-items:center;gap:4px}
+.mkt-item{background:#1a1a3e;border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.mkt-item .mkt-left{display:flex;flex-direction:column}
+.mkt-item .mkt-sym{font-weight:700;font-size:12px}
+.mkt-item .mkt-name{font-size:9px;color:#666}
+.mkt-item .mkt-right{text-align:right}
+.mkt-item .mkt-price{font-weight:700;font-size:12px}
+.mkt-item .mkt-chg{font-size:10px}
 .settings-panel{display:none;background:#1a1a3e;border-radius:8px;padding:12px;margin-bottom:8px}
 .settings-panel.show{display:block}
 .settings-panel label{font-size:10px;color:#888;display:block;margin-bottom:3px}
@@ -88,6 +97,7 @@ body{width:400px;max-height:600px;font-family:-apple-system,sans-serif;backgroun
 
 <div class="tabs">
   <div class="tab active" data-tab="market">Market</div>
+  <div class="tab" data-tab="markets">Forex</div>
   <div class="tab" data-tab="portfolio">Portfolio</div>
   <div class="tab" data-tab="whales">Whales</div>
   <div class="tab" data-tab="news">News</div>
@@ -99,6 +109,12 @@ body{width:400px;max-height:600px;font-family:-apple-system,sans-serif;backgroun
   <div class="gas-bar" id="gas"><div class="loading">Loading...</div></div>
   <div class="section-title">Top Coins</div>
   <div id="coins"><div class="loading">Loading prices...</div></div>
+</div>
+
+<div class="panel" id="panel-markets">
+  <div class="market-section"><div class="section-label">&#128176; Commodities</div><div id="mkt-commodities"><div class="loading">Loading...</div></div></div>
+  <div class="market-section"><div class="section-label">&#127981; Forex (Major)</div><div id="mkt-forex"><div class="loading">Loading...</div></div></div>
+  <div class="market-section"><div class="section-label">&#128200; Stocks</div><div id="mkt-stocks"><div class="loading">Loading...</div></div></div>
 </div>
 
 <div class="panel" id="panel-portfolio">

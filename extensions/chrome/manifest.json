@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "ChainSight - Crypto Intelligence",
-  "version": "1.1.0",
-  "description": "Crypto, forex & stocks intelligence — prices, whale alerts, honeypot detection, news",
+  "version": "1.2.0",
+  "description": "Crypto, forex, gold & stocks intelligence — prices, whale alerts, honeypot detection, news",
   "permissions": ["storage", "alarms", "notifications"],
   "action": {
     "default_popup": "popup.html",

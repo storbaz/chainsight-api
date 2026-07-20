@@ -75,15 +75,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/price coin — Get coin price\n"
         "/top — Top 10 coins\n"
         "/feargreed — Fear & Greed Index\n"
+        "/overview — Gold, forex, stocks & crypto\n"
         "/search query — Search coins\n\n"
         "<b>DeFi & Security:</b>\n"
         "/defi — Top DeFi protocols\n"
         "/gas — Gas prices (all chains)\n"
         "/honeypot address — Check token safety\n\n"
-        "<b>Forex & Stocks:</b>\n"
+        "<b>Forex & Commodities:</b>\n"
         "/forex pair — Forex rate (EUR/USD)\n"
-        "/stocks symbol — Stock price (AAPL)\n"
-        "/overview — Full market overview\n\n"
+        "/stocks symbol — Stock price (AAPL)\n\n"
         "<b>Whales:</b>\n"
         "/whales chain — Whale txs (eth/btc/bsc/sol)\n\n"
         "<b>News:</b>\n"
@@ -315,10 +315,18 @@ async def overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     forex_pairs = data.get("forex", [])[:5]
     stocks_list = data.get("stocks", [])[:5]
-    commodities = data.get("commodities", [])[:3]
+    commodities = data.get("commodities", [])[:4]
     lines = ["📊 <b>Market Overview</b>\n"]
+    if commodities:
+        lines.append("<b>Commodities:</b>")
+        for c in commodities:
+            price = c.get("price", 0) or 0
+            ch = c.get("change_24h", 0) or 0
+            emoji = "🟢" if ch >= 0 else "🔴"
+            name = c.get("name", c["symbol"])
+            lines.append(f"  {name}: ${price:,.2f} {emoji} {ch:+.2f}%")
     if forex_pairs:
-        lines.append("<b>Forex:</b>")
+        lines.append("\n<b>Forex:</b>")
         for p in forex_pairs:
             price = p.get("price", 0) or 0
             ch = p.get("change_24h", 0) or 0
@@ -331,13 +339,6 @@ async def overview(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ch = s.get("change_24h", 0) or 0
             emoji = "🟢" if ch >= 0 else "🔴"
             lines.append(f"  {s['symbol']}: ${price:,.2f} {emoji} {ch:+.2f}%")
-    if commodities:
-        lines.append("\n<b>Commodities:</b>")
-        for c in commodities:
-            price = c.get("price", 0) or 0
-            ch = c.get("change_24h", 0) or 0
-            emoji = "🟢" if ch >= 0 else "🔴"
-            lines.append(f"  {c['symbol']}: ${price:,.2f} {emoji} {ch:+.2f}%")
     await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 

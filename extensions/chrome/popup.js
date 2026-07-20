@@ -84,6 +84,7 @@ async function loadAll() {
   loadWhales();
   loadNews();
   loadPortfolio();
+  loadMarkets();
 }
 
 // Fear & Greed
@@ -170,6 +171,34 @@ async function loadNews() {
   }
 }
 
+// Markets (Forex, Gold, Stocks, Commodities)
+async function loadMarkets() {
+  try {
+    const r = await fetch(`${API}/v1/forex/pairs`);
+    const d = await r.json();
+    const pairs = d.pairs || [];
+    const commodities = pairs.filter(p => p.type === "commodity");
+    const forex = pairs.filter(p => p.type === "forex");
+    const stocks = pairs.filter(p => p.type === "stock");
+
+    function mktItem(p) {
+      const ch = p.change_24h || 0;
+      const cls = ch >= 0 ? "up" : "dn";
+      const prefix = p.type !== "forex" ? "$" : "";
+      const priceStr = `${prefix}${p.rate.toLocaleString(undefined, {minimumFractionDigits: p.type === "forex" ? 4 : 2, maximumFractionDigits: p.type === "forex" ? 4 : 2})}`;
+      return `<div class="mkt-item"><div class="mkt-left"><span class="mkt-sym">${p.pair}</span><span class="mkt-name">${p.name || ""}</span></div><div class="mkt-right"><div class="mkt-price">${priceStr}</div>${ch !== 0 ? `<div class="mkt-chg ${cls}">${ch >= 0 ? "+" : ""}${ch.toFixed(2)}%</div>` : ""}</div></div>`;
+    }
+
+    document.getElementById("mkt-commodities").innerHTML = commodities.length ? commodities.map(mktItem).join("") : '<div class="empty">No data</div>';
+    document.getElementById("mkt-forex").innerHTML = forex.length ? forex.map(mktItem).join("") : '<div class="empty">No data</div>';
+    document.getElementById("mkt-stocks").innerHTML = stocks.length ? stocks.map(mktItem).join("") : '<div class="empty">No data</div>';
+  } catch (e) {
+    document.getElementById("mkt-commodities").innerHTML = '<div class="loading">Error</div>';
+    document.getElementById("mkt-forex").innerHTML = '<div class="loading">Error</div>';
+    document.getElementById("mkt-stocks").innerHTML = '<div class="loading">Error</div>';
+  }
+}
+
 // Portfolio
 async function loadPortfolio() {
   if (!portfolio.length) {
@@ -205,6 +234,7 @@ setInterval(() => {
   if (activeTab) {
     const tab = activeTab.dataset.tab;
     if (tab === "market") { loadFearGreed(); loadCoins(); loadGas(); }
+    else if (tab === "markets") loadMarkets();
     else if (tab === "whales") loadWhales();
     else if (tab === "portfolio") loadPortfolio();
   }
