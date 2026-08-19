@@ -2,30 +2,34 @@ name: Keep ChainSight Alive
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "*/12 * * * *"
   workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Ping ChainSight API
+        continue-on-error: true
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 30 --max-time 60 https://chainsight-api.onrender.com/ping)
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 30 --max-time 60 https://chainsight-api.onrender.com/ping || echo "000")
           echo "Ping status: $STATUS at $(date)"
           if [ "$STATUS" != "200" ]; then
             echo "API returned non-200, waiting 90s for cold start..."
             sleep 90
-            STATUS2=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 30 --max-time 60 https://chainsight-api.onrender.com/ping)
+            STATUS2=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 30 --max-time 60 https://chainsight-api.onrender.com/ping || echo "000")
             echo "Retry status: $STATUS2 at $(date)"
           fi
 
       - name: Ping Telegram Bot
+        continue-on-error: true
         run: |
-          curl -s -o /dev/null -w "%{http_code}" --connect-timeout 30 --max-time 60 https://crypto-insight-bot.onrender.com/ || true
+          curl -s -o /dev/null --connect-timeout 30 --max-time 60 https://crypto-insight-bot.onrender.com/ || true
           echo "Bot pinged at $(date)"
 
       - name: Ping MCP Server
+        continue-on-error: true
         run: |
-          curl -s -o /dev/null -w "%{http_code}" --connect-timeout 30 --max-time 60 https://chainsight-mcp.onrender.com/mcp || true
+          curl -s -o /dev/null --connect-timeout 30 --max-time 60 https://chainsight-mcp.onrender.com/mcp || true
           echo "MCP pinged at $(date)"
