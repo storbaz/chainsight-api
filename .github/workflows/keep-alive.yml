@@ -1,4 +1,4 @@
-name: Keep ChainSight Alive
+name: Keep Alive
 
 on:
   schedule:
@@ -8,12 +8,5 @@ on:
 jobs:
   ping:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
     steps:
-      - name: Ping all services
-        run: |
-          curl -s -o /dev/null --connect-timeout 30 --max-time 60 https://chainsight-api.onrender.com/ping || true
-          curl -s -o /dev/null --connect-timeout 30 --max-time 60 https://crypto-insight-bot.onrender.com/ || true
-          curl -s -o /dev/null --connect-timeout 30 --max-time 60 https://chainsight-mcp.onrender.com/mcp || true
-          echo "All services pinged at $(date)"
-        shell: bash
+      - run: echo "Hello"
